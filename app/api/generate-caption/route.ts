@@ -92,8 +92,8 @@ HASHTAGS: [#tag1 #tag2 #tag3 #tag4 #tag5 #tag6]`,
     // Parse Claude's response
     const text = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    const captionMatch = text.match(/CAPTION:\s*(.+?)(?=\nHASHTAGS:|$)/s)
-    const hashtagsMatch = text.match(/HASHTAGS:\s*(.+)/s)
+    const captionMatch = text.match(/CAPTION:\s*([\s\S]+?)(?=\nHASHTAGS:|$)/)
+    const hashtagsMatch = text.match(/HASHTAGS:\s*([\s\S]+)/)
 
     const caption = captionMatch?.[1]?.trim() ?? text.split('\n')[0]
     const hashtagsRaw = hashtagsMatch?.[1]?.trim() ?? ''
