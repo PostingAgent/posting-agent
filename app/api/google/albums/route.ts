@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-async function refreshAccessToken(refreshToken: string): Promise<{access_token: string, scope?: string} | null> {
+async function refreshAccessToken(refreshToken: string): Promise<any> {
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -36,12 +36,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Google not connected' }, { status: 400 })
   }
 
-  // Always refresh to get a fresh token with correct scopes
   if (profile.google_refresh_token) {
     const refreshed = await refreshAccessToken(profile.google_refresh_token)
     if (refreshed) {
       console.log('Refreshed token scope:', refreshed.scope)
-      
+
       await supabase
         .from('user_profiles')
         .update({ google_access_token: refreshed.access_token })
@@ -52,9 +51,8 @@ export async function GET(request: NextRequest) {
         { headers: { Authorization: `Bearer ${refreshed.access_token}` } }
       )
       const data = await res.json()
-      console.log('Google Photos API response status:', res.status)
-      console.log('Google Photos API response:', JSON.stringify(data).substring(0, 500))
-      
+      console.log('Photos API status:', res.status)
+
       if (data.error) {
         return NextResponse.json({ error: data.error.message, scope: refreshed.scope }, { status: res.status })
       }
@@ -74,12 +72,12 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-Save (Ctrl+S), then push to GitHub:
+Save (Ctrl+S), then run:
 ```
 git add -A
 ```
 ```
-git commit -m "debug: add scope logging to albums API"
+git commit -m "debug: fix albums route"
 ```
 ```
 git push
