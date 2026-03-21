@@ -71,13 +71,3 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ albums: data.albums ?? [] })
 }
 ```
-
-Save (Ctrl+S), then run:
-```
-git add -A
-```
-```
-git commit -m "debug: fix albums route"
-```
-```
-git push
