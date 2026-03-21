@@ -14,7 +14,6 @@ async function refreshAccessToken(refreshToken: string): Promise<any> {
       }),
     })
     const data = await res.json()
-    console.log('Refresh response:', JSON.stringify(data))
     return data.access_token ? data : null
   } catch {
     return null
@@ -36,37 +35,32 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Google not connected' }, { status: 400 })
   }
 
+  let token = profile.google_access_token
+
   if (profile.google_refresh_token) {
     const refreshed = await refreshAccessToken(profile.google_refresh_token)
     if (refreshed) {
-      console.log('Refreshed token scope:', refreshed.scope)
-
-      await supabase
-        .from('user_profiles')
-        .update({ google_access_token: refreshed.access_token })
-        .eq('id', user.id)
-
-      const res = await fetch(
-        'https://photoslibrary.googleapis.com/v1/albums?pageSize=50',
-        { headers: { Authorization: `Bearer ${refreshed.access_token}` } }
-      )
-      const data = await res.json()
-      console.log('Photos API status:', res.status)
-
-      if (data.error) {
-        return NextResponse.json({ error: data.error.message, scope: refreshed.scope }, { status: res.status })
-      }
-      return NextResponse.json({ albums: data.albums ?? [] })
+      token = refreshed.access_token
+      await supabase.from('user_profiles').update({ google_access_token: token }).eq('id', user.id)
     }
   }
 
   const res = await fetch(
-    'https://photoslibrary.googleapis.com/v1/albums?pageSize=50',
-    { headers: { Authorization: `Bearer ${profile.google_access_token}` } }
+    "https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder'+and+trashed=false&fields=files(id,name)&pageSize=50",
+    { headers: { Authorization: 'Bearer ' + token } }
   )
   const data = await res.json()
+
   if (data.error) {
     return NextResponse.json({ error: data.error.message }, { status: res.status })
   }
-  return NextResponse.json({ albums: data.albums ?? [] })
+
+  const albums = (data.files ?? []).map((f: any) => ({
+    id: f.id,
+    title: f.name,
+    mediaItemsCount: null,
+    coverPhotoBaseUrl: null,
+  }))
+
+  return NextResponse.json({ albums })
 }

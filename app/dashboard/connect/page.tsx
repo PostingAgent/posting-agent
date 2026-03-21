@@ -1,5 +1,5 @@
 // app/dashboard/connect/page.tsx
-// Lets the user connect their Google Photos account and pick a folder/album
+// Lets the user connect their Google Drive account and pick a folder/album
 
 'use client'
 
@@ -46,7 +46,7 @@ export default function ConnectPage() {
       redirect_uri: `${window.location.origin}/api/google/callback`,
       response_type: 'code',
       scope: [
-        'https://www.googleapis.com/auth/photoslibrary.readonly',
+        'https://www.googleapis.com/auth/drive.readonly',
         'openid',
         'email',
       ].join(' '),
@@ -56,7 +56,7 @@ export default function ConnectPage() {
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
   }
 
-  // Fetch the user's Google Photos albums via our API route
+  // Fetch the user's Google Drive albums via our API route
   async function fetchAlbums(token: string) {
     setLoadingAlbums(true)
     const res = await fetch('/api/google/albums', {
@@ -93,7 +93,7 @@ export default function ConnectPage() {
       <div className="card mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-gray-800">Step 1 — Connect Google Photos</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Step 1 — Connect Google Drive</h2>
             <p className="text-xs text-gray-500 mt-1">
               We only read your photos — we never modify or delete anything.
             </p>
@@ -107,7 +107,7 @@ export default function ConnectPage() {
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
               </svg>
-              Connect Google Photos
+              Connect Google Drive
             </button>
           )}
         </div>
@@ -118,7 +118,7 @@ export default function ConnectPage() {
         <div className="card mb-6">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">Step 2 — Pick a folder</h2>
           <p className="text-xs text-gray-500 mb-4">
-            Create an album in Google Photos called something like &quot;Job Photos&quot; — then select it here.
+            Create an album in Google Drive called something like &quot;Job Photos&quot; — then select it here.
             Any photo you add to it will be automatically posted.
           </p>
 
