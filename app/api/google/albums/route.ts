@@ -1,10 +1,7 @@
-// app/api/google/albums/route.ts
-// GET /api/google/albums
-// Returns the user's Google Photos albums so they can pick one to watch.
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
-async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+async function refreshAccessToken(refreshToken: string): Promise<{access_token: string, scope?: string} | null> {
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -17,7 +14,8 @@ async function refreshAccessToken(refreshToken: string): Promise<string | null> 
       }),
     })
     const data = await res.json()
-    return data.access_token ?? null
+    console.log('Refresh response:', JSON.stringify(data))
+    return data.access_token ? data : null
   } catch {
     return null
   }
@@ -28,7 +26,6 @@ export async function GET(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Get the stored tokens
   const { data: profile } = await supabase
     .from('user_profiles')
     .select('google_access_token, google_refresh_token')
@@ -39,37 +36,50 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Google not connected' }, { status: 400 })
   }
 
-  let token = profile.google_access_token
-
-  // Try fetching albums with current token
-  let res = await fetch(
-    'https://photoslibrary.googleapis.com/v1/albums?pageSize=50',
-    { headers: { Authorization: `Bearer ${token}` } }
-  )
-
-  // If token expired, refresh it and retry
-  if (res.status === 401 && profile.google_refresh_token) {
-    const newToken = await refreshAccessToken(profile.google_refresh_token)
-    if (newToken) {
-      token = newToken
-      // Save the new token to the database
+  // Always refresh to get a fresh token with correct scopes
+  if (profile.google_refresh_token) {
+    const refreshed = await refreshAccessToken(profile.google_refresh_token)
+    if (refreshed) {
+      console.log('Refreshed token scope:', refreshed.scope)
+      
       await supabase
         .from('user_profiles')
-        .update({ google_access_token: newToken })
+        .update({ google_access_token: refreshed.access_token })
         .eq('id', user.id)
 
-      // Retry the request with the new token
-      res = await fetch(
+      const res = await fetch(
         'https://photoslibrary.googleapis.com/v1/albums?pageSize=50',
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${refreshed.access_token}` } }
       )
+      const data = await res.json()
+      console.log('Google Photos API response status:', res.status)
+      console.log('Google Photos API response:', JSON.stringify(data).substring(0, 500))
+      
+      if (data.error) {
+        return NextResponse.json({ error: data.error.message, scope: refreshed.scope }, { status: res.status })
+      }
+      return NextResponse.json({ albums: data.albums ?? [] })
     }
   }
 
+  const res = await fetch(
+    'https://photoslibrary.googleapis.com/v1/albums?pageSize=50',
+    { headers: { Authorization: `Bearer ${profile.google_access_token}` } }
+  )
   const data = await res.json()
   if (data.error) {
     return NextResponse.json({ error: data.error.message }, { status: res.status })
   }
-
   return NextResponse.json({ albums: data.albums ?? [] })
 }
+```
+
+Save (Ctrl+S), then push to GitHub:
+```
+git add -A
+```
+```
+git commit -m "debug: add scope logging to albums API"
+```
+```
+git push
