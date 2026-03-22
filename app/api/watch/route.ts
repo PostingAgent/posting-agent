@@ -1,5 +1,5 @@
 // app/api/watch/route.ts
-// Cron job: checks each user's Google Drive folder for new images,
+// Cron job: checks each user's Google Photos album for new images,
 // generates AI captions, and creates post records.
 
 import { NextResponse } from 'next/server'
@@ -9,17 +9,20 @@ import Anthropic from '@anthropic-ai/sdk'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-interface DriveFile {
+interface PhotoItem {
   id: string
-  name: string
+  filename: string
   mimeType: string
-  createdTime: string
+  baseUrl: string
+  mediaMetadata?: {
+    creationTime?: string
+  }
 }
 
 export async function GET() {
   const supabase = createAdminClient(supabaseUrl, supabaseServiceKey)
 
-  // Get all users who have connected a Google Drive folder
+  // Get all users who have connected a Google Photos album
   const { data: users, error } = await supabase
     .from('user_profiles')
     .select('id, trade, caption_tone, auto_post, google_access_token, google_refresh_token, google_folder_id')
@@ -41,20 +44,14 @@ export async function GET() {
         if (newToken) accessToken = newToken
       }
 
-      // Check for new files since last check (default: last 24 hours)
-      const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
-
-      const newItems = await fetchNewFiles(
-        accessToken,
-        user.google_folder_id,
-        since
-      )
+      // Fetch new photos from the album
+      const newItems = await fetchNewPhotos(accessToken, user.google_folder_id, user.id, supabase)
 
       results.push({ userId: user.id, newItems: newItems.length })
 
       // Process each new photo
       for (const item of newItems) {
-        await processPhoto(item, user, accessToken, supabase)
+        await processPhoto(item, user, supabase)
       }
     } catch (err: any) {
       console.error(`Error processing user ${user.id}:`, err)
@@ -93,32 +90,54 @@ async function refreshGoogleToken(user: { id: string; google_refresh_token: stri
   return null
 }
 
-// Fetch new image files from the Google Drive folder
-async function fetchNewFiles(
+// Fetch new photos from a Google Photos album
+async function fetchNewPhotos(
   accessToken: string,
-  folderId: string,
-  since: Date
-): Promise<DriveFile[]> {
-  const sinceISO = since.toISOString()
-  const query = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false and modifiedTime > '${sinceISO}'`
-  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,createdTime)&pageSize=20`
-
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+  albumId: string,
+  userId: string,
+  supabase: any
+): Promise<PhotoItem[]> {
+  const res = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:search', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      albumId: albumId,
+      pageSize: 20,
+    }),
   })
+
   const data = await res.json()
 
   if (data.error) {
-    console.error('Drive API error:', data.error)
+    console.error('Google Photos API error:', data.error)
     return []
   }
 
-  return data.files ?? []
+  const items: PhotoItem[] = data.mediaItems ?? []
+
+  // Filter out photos we've already processed
+  const newItems: PhotoItem[] = []
+  for (const item of items) {
+    const { data: existing } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('google_media_id', item.id)
+      .single()
+
+    if (!existing) {
+      newItems.push(item)
+    }
+  }
+
+  return newItems
 }
 
-// Process a single photo: download from Drive, upload to Supabase Storage, generate caption, create post
+// Process a single photo: download, upload to Supabase Storage, generate caption, create post
 async function processPhoto(
-  item: DriveFile,
+  item: PhotoItem,
   user: {
     id: string
     trade: string
@@ -126,26 +145,13 @@ async function processPhoto(
     auto_post: boolean
     google_folder_id: string
   },
-  accessToken: string,
   supabase: any
 ) {
-  // Check we haven't already processed this file
-  const { data: existing } = await supabase
-    .from('posts')
-    .select('id')
-    .eq('google_media_id', item.id)
-    .single()
-
-  if (existing) return // Already processed, skip
-
-  // Download the photo from Google Drive
-  const imageRes = await fetch(
-    `https://www.googleapis.com/drive/v3/files/${item.id}?alt=media`,
-    { headers: { Authorization: `Bearer ${accessToken}` } }
-  )
+  // Download the photo from Google Photos (baseUrl + =d for full resolution download)
+  const imageRes = await fetch(`${item.baseUrl}=d`)
   const imageBuffer = await imageRes.arrayBuffer()
 
-  const fileName = `${user.id}/${Date.now()}-${item.name}`
+  const fileName = `${user.id}/${Date.now()}-${item.filename}`
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from('post-images')
     .upload(fileName, imageBuffer, {
@@ -163,8 +169,8 @@ async function processPhoto(
     .from('post-images')
     .getPublicUrl(uploadData.path)
 
-  // Generate AI caption
-  const caption = await generateCaption(publicUrl, user.trade, user.caption_tone)
+  // Generate AI caption using base64 image
+  const caption = await generateCaption(imageBuffer, item.mimeType, user.trade, user.caption_tone)
 
   // Create the post record
   await supabase.from('posts').insert({
@@ -180,12 +186,17 @@ async function processPhoto(
 
 // Use Claude to generate a caption for the photo
 async function generateCaption(
-  imageUrl: string,
+  imageBuffer: ArrayBuffer,
+  mimeType: string,
   trade: string,
   tone: string
 ): Promise<{ text: string; hashtags: string[] }> {
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+    // Convert image to base64
+    const base64 = Buffer.from(imageBuffer).toString('base64')
+    const mediaType = mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp'
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -196,7 +207,7 @@ async function generateCaption(
           content: [
             {
               type: 'image',
-              source: { type: 'url', url: imageUrl },
+              source: { type: 'base64', media_type: mediaType, data: base64 },
             },
             {
               type: 'text',
