@@ -1,5 +1,5 @@
 // app/api/watch/route.ts
-// Cron job: checks each user's Google Photos album for new images,
+// Cron job: checks each user's Google Drive folder for new images,
 // generates AI captions, and creates post records.
 
 import { NextResponse } from 'next/server'
@@ -9,20 +9,17 @@ import Anthropic from '@anthropic-ai/sdk'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-interface PhotoItem {
+interface DriveFile {
   id: string
-  filename: string
+  name: string
   mimeType: string
-  baseUrl: string
-  mediaMetadata?: {
-    creationTime?: string
-  }
+  createdTime: string
 }
 
 export async function GET() {
   const supabase = createAdminClient(supabaseUrl, supabaseServiceKey)
 
-  // Get all users who have connected a Google Photos album
+  // Get all users who have connected a Google Drive folder
   const { data: users, error } = await supabase
     .from('user_profiles')
     .select('id, trade, caption_tone, auto_post, google_access_token, google_refresh_token, google_folder_id')
@@ -44,14 +41,27 @@ export async function GET() {
         if (newToken) accessToken = newToken
       }
 
-      // Fetch new photos from the album
-      const newItems = await fetchNewPhotos(accessToken, user.google_folder_id, user.id, supabase)
+      // Check for new files since last 24 hours
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-      results.push({ userId: user.id, newItems: newItems.length })
+      const newItems = await fetchNewFiles(accessToken, user.google_folder_id, since)
+
+      // Filter out already-processed files
+      const unprocessed: DriveFile[] = []
+      for (const item of newItems) {
+        const { data: existing } = await supabase
+          .from('posts')
+          .select('id')
+          .eq('google_media_id', item.id)
+          .single()
+        if (!existing) unprocessed.push(item)
+      }
+
+      results.push({ userId: user.id, newItems: unprocessed.length })
 
       // Process each new photo
-      for (const item of newItems) {
-        await processPhoto(item, user, supabase)
+      for (const item of unprocessed) {
+        await processPhoto(item, user, accessToken, supabase)
       }
     } catch (err: any) {
       console.error(`Error processing user ${user.id}:`, err)
@@ -90,54 +100,32 @@ async function refreshGoogleToken(user: { id: string; google_refresh_token: stri
   return null
 }
 
-// Fetch new photos from a Google Photos album
-async function fetchNewPhotos(
+// Fetch new image files from the Google Drive folder
+async function fetchNewFiles(
   accessToken: string,
-  albumId: string,
-  userId: string,
-  supabase: any
-): Promise<PhotoItem[]> {
-  const res = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:search', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      albumId: albumId,
-      pageSize: 20,
-    }),
-  })
+  folderId: string,
+  since: Date
+): Promise<DriveFile[]> {
+  const sinceISO = since.toISOString()
+  const query = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false and modifiedTime > '${sinceISO}'`
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,createdTime)&pageSize=20`
 
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
   const data = await res.json()
 
   if (data.error) {
-    console.error('Google Photos API error:', data.error)
+    console.error('Drive API error:', data.error)
     return []
   }
 
-  const items: PhotoItem[] = data.mediaItems ?? []
-
-  // Filter out photos we've already processed
-  const newItems: PhotoItem[] = []
-  for (const item of items) {
-    const { data: existing } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('google_media_id', item.id)
-      .single()
-
-    if (!existing) {
-      newItems.push(item)
-    }
-  }
-
-  return newItems
+  return data.files ?? []
 }
 
-// Process a single photo: download, upload to Supabase Storage, generate caption, create post
+// Process a single photo: download from Drive, upload to Supabase Storage, generate caption, create post
 async function processPhoto(
-  item: PhotoItem,
+  item: DriveFile,
   user: {
     id: string
     trade: string
@@ -145,13 +133,17 @@ async function processPhoto(
     auto_post: boolean
     google_folder_id: string
   },
+  accessToken: string,
   supabase: any
 ) {
-  // Download the photo from Google Photos (baseUrl + =d for full resolution download)
-  const imageRes = await fetch(`${item.baseUrl}=d`)
+  // Download the photo from Google Drive
+  const imageRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${item.id}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
   const imageBuffer = await imageRes.arrayBuffer()
 
-  const fileName = `${user.id}/${Date.now()}-${item.filename}`
+  const fileName = `${user.id}/${Date.now()}-${item.name}`
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from('post-images')
     .upload(fileName, imageBuffer, {
@@ -224,7 +216,7 @@ HASHTAGS: [comma-separated list of 6 relevant hashtags without the # symbol]`,
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
 
-   const captionMatch = responseText.match(/CAPTION:\s*([\s\S]+?)(?=\nHASHTAGS:|\n\n|$)/)
+    const captionMatch = responseText.match(/CAPTION:\s*([\s\S]+?)(?=\nHASHTAGS:|\n\n|$)/)
     const hashtagMatch = responseText.match(/HASHTAGS:\s*([\s\S]+)/)
 
     return {
