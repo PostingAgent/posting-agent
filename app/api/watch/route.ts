@@ -1,95 +1,73 @@
 // app/api/watch/route.ts
-//
-// GET /api/watch
-// Called by a cron job every 5 minutes (configured in vercel.json)
-// For each user who has a connected Google Photos folder, it checks for
-// new photos since the last check, generates captions, and creates post records.
+// Cron job: checks each user's Google Drive folder for new images,
+// generates AI captions, and creates post records.
 
 import { NextResponse } from 'next/server'
-import { createAdminClient } from '@/lib/supabase/server'
-import { GoogleMediaItem } from '@/types'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+import Anthropic from '@anthropic-ai/sdk'
 
-// Verify this request is from our cron job, not a random visitor
-// Vercel sets this header automatically for cron routes
-function verifyCronSecret(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  return authHeader === `Bearer ${process.env.CRON_SECRET}`
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+interface DriveFile {
+  id: string
+  name: string
+  mimeType: string
+  createdTime: string
 }
 
-export async function GET(request: Request) {
-  // In production, only allow cron job to call this
-  if (process.env.NODE_ENV === 'production' && !verifyCronSecret(request)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export async function GET() {
+  const supabase = createAdminClient(supabaseUrl, supabaseServiceKey)
 
-  const supabase = await createAdminClient()
-
-  // Get all users who have connected a Google Photos folder
+  // Get all users who have connected a Google Drive folder
   const { data: users, error } = await supabase
     .from('user_profiles')
     .select('id, trade, caption_tone, auto_post, google_access_token, google_refresh_token, google_folder_id')
     .not('google_folder_id', 'is', null)
     .not('google_access_token', 'is', null)
 
-  if (error || !users) {
-    return NextResponse.json({ error: 'Failed to load users' }, { status: 500 })
+  if (error || !users?.length) {
+    return NextResponse.json({ message: 'No users to process', error: error?.message })
   }
 
-  let totalNew = 0
-  const results = []
+  const results: any[] = []
 
   for (const user of users) {
     try {
-      // Refresh the Google access token if needed
-      const accessToken = await refreshGoogleToken(user, supabase)
-      if (!accessToken) continue
+      // Refresh the token first
+      let accessToken = user.google_access_token
+      if (user.google_refresh_token) {
+        const newToken = await refreshGoogleToken(user, supabase)
+        if (newToken) accessToken = newToken
+      }
 
-      // Find out when we last checked this user's folder
-      const { data: lastPost } = await supabase
-        .from('posts')
-        .select('created_at')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+      // Check for new files since last check (default: last 24 hours)
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
 
-      // Look back 24 hours if no posts exist yet, otherwise since last check
-      const since = lastPost?.created_at
-        ? new Date(lastPost.created_at)
-        : new Date(Date.now() - 24 * 60 * 60 * 1000)
-
-      // Fetch new media items from the Google Photos album
-      const newItems = await fetchNewPhotos(
+      const newItems = await fetchNewFiles(
         accessToken,
         user.google_folder_id,
         since
       )
 
-      if (newItems.length === 0) continue
+      results.push({ userId: user.id, newItems: newItems.length })
 
-      // For each new photo, generate a caption and create a post record
+      // Process each new photo
       for (const item of newItems) {
-        await processPhoto(item, user, supabase)
-        totalNew++
+        await processPhoto(item, user, accessToken, supabase)
       }
-
-      results.push({ userId: user.id, newPhotos: newItems.length })
-    } catch (err) {
+    } catch (err: any) {
       console.error(`Error processing user ${user.id}:`, err)
+      results.push({ userId: user.id, error: err.message })
     }
   }
 
-  return NextResponse.json({
-    processed: users.length,
-    newPhotosFound: totalNew,
-    results,
-  })
+  return NextResponse.json({ processed: results })
 }
 
 // Refresh the Google OAuth access token using the refresh token
-async function refreshGoogleToken(user: { id: string, google_refresh_token: string }, supabase: ReturnType<typeof createAdminClient> extends Promise<infer T> ? T : never) {
+async function refreshGoogleToken(user: { id: string; google_refresh_token: string }, supabase: any) {
   if (!user.google_refresh_token) return null
-
   try {
     const res = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -101,10 +79,8 @@ async function refreshGoogleToken(user: { id: string, google_refresh_token: stri
         grant_type: 'refresh_token',
       }),
     })
-
     const data = await res.json()
     if (data.access_token) {
-      // Save the new access token
       await supabase
         .from('user_profiles')
         .update({ google_access_token: data.access_token })
@@ -117,50 +93,32 @@ async function refreshGoogleToken(user: { id: string, google_refresh_token: stri
   return null
 }
 
-// Fetch photos added to the album since a given date
-async function fetchNewPhotos(
+// Fetch new image files from the Google Drive folder
+async function fetchNewFiles(
   accessToken: string,
-  albumId: string,
+  folderId: string,
   since: Date
-): Promise<GoogleMediaItem[]> {
-  const res = await fetch('https://photoslibrary.googleapis.com/v1/mediaItems:search', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      albumId,
-      pageSize: 20,
-      filters: {
-        dateFilter: {
-          ranges: [{
-            startDate: {
-              year: since.getFullYear(),
-              month: since.getMonth() + 1,
-              day: since.getDate(),
-            },
-            endDate: {
-              year: new Date().getFullYear(),
-              month: new Date().getMonth() + 1,
-              day: new Date().getDate(),
-            },
-          }],
-        },
-      },
-    }),
-  })
+): Promise<DriveFile[]> {
+  const sinceISO = since.toISOString()
+  const query = `'${folderId}' in parents and mimeType contains 'image/' and trashed = false and modifiedTime > '${sinceISO}'`
+  const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,createdTime)&pageSize=20`
 
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
   const data = await res.json()
-  return (data.mediaItems ?? []).filter((item: GoogleMediaItem) =>
-    // Only process photos (not videos) for now
-    item.mimeType?.startsWith('image/')
-  )
+
+  if (data.error) {
+    console.error('Drive API error:', data.error)
+    return []
+  }
+
+  return data.files ?? []
 }
 
-// Process a single photo: upload to Supabase Storage, generate caption, create post record
+// Process a single photo: download from Drive, upload to Supabase Storage, generate caption, create post
 async function processPhoto(
-  item: GoogleMediaItem,
+  item: DriveFile,
   user: {
     id: string
     trade: string
@@ -168,23 +126,26 @@ async function processPhoto(
     auto_post: boolean
     google_folder_id: string
   },
-  supabase: ReturnType<typeof createAdminClient> extends Promise<infer T> ? T : never
+  accessToken: string,
+  supabase: any
 ) {
-  // Check we haven't already processed this photo
+  // Check we haven't already processed this file
   const { data: existing } = await supabase
     .from('posts')
     .select('id')
     .eq('google_media_id', item.id)
     .single()
 
-  if (existing) return  // Already processed, skip
+  if (existing) return // Already processed, skip
 
-  // Download the photo from Google and upload to Supabase Storage
-  // We store a copy so we're not dependent on Google Photos URLs expiring
-  const imageRes = await fetch(`${item.baseUrl}=w1200-h1200`)
+  // Download the photo from Google Drive
+  const imageRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files/${item.id}?alt=media`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  )
   const imageBuffer = await imageRes.arrayBuffer()
 
-  const fileName = `${user.id}/${Date.now()}-${item.filename}`
+  const fileName = `${user.id}/${Date.now()}-${item.name}`
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from('post-images')
     .upload(fileName, imageBuffer, {
@@ -202,46 +163,68 @@ async function processPhoto(
     .from('post-images')
     .getPublicUrl(uploadData.path)
 
-  // Call our caption generation API
-  const captionRes = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL}/api/generate-caption`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        imageUrl: publicUrl,
-        trade: user.trade,
-        tone: user.caption_tone,
-      }),
-    }
-  )
-
-  const { caption, hashtags } = await captionRes.json()
-
-  // Default platforms — all 5
-  const platforms = ['instagram', 'facebook', 'tiktok', 'linkedin', 'x']
+  // Generate AI caption
+  const caption = await generateCaption(publicUrl, user.trade, user.caption_tone)
 
   // Create the post record
-  // Status depends on auto_post setting:
-  // - auto_post = true  → "scheduled" (will post automatically)
-  // - auto_post = false → "pending_review" (user must approve)
   await supabase.from('posts').insert({
     user_id: user.id,
     image_url: publicUrl,
-    caption,
-    hashtags,
-    platforms,
-    status: user.auto_post ? 'scheduled' : 'pending_review',
-    scheduled_for: user.auto_post ? getOptimalPostTime() : null,
+    caption: caption.text,
+    hashtags: caption.hashtags,
     google_media_id: item.id,
+    status: user.auto_post ? 'scheduled' : 'pending_review',
+    scheduled_for: user.auto_post ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null,
   })
 }
 
-// Pick the best time to post — 9am tomorrow by default
-// In a future version this will use per-platform analytics
-function getOptimalPostTime(): string {
-  const tomorrow = new Date()
-  tomorrow.setDate(tomorrow.getDate() + 1)
-  tomorrow.setHours(9, 0, 0, 0)
-  return tomorrow.toISOString()
+// Use Claude to generate a caption for the photo
+async function generateCaption(
+  imageUrl: string,
+  trade: string,
+  tone: string
+): Promise<{ text: string; hashtags: string[] }> {
+  try {
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 300,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: { type: 'url', url: imageUrl },
+            },
+            {
+              type: 'text',
+              text: `You are a social media manager for a ${trade} business. Write a short, engaging social media caption for this job site photo. Tone: ${tone || 'professional but friendly'}.
+
+Return your response in this exact format:
+CAPTION: [your caption here]
+HASHTAGS: [comma-separated list of 6 relevant hashtags without the # symbol]`,
+            },
+          ],
+        },
+      ],
+    })
+
+    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
+
+    const captionMatch = responseText.match(/CAPTION:\s*(.+?)(?=\nHASHTAGS:|\n\n|$)/s)
+    const hashtagMatch = responseText.match(/HASHTAGS:\s*(.+)/s)
+
+    return {
+      text: captionMatch?.[1]?.trim() ?? responseText,
+      hashtags: hashtagMatch?.[1]?.split(',').map((h: string) => h.trim()) ?? [],
+    }
+  } catch (err) {
+    console.error('Caption generation error:', err)
+    return {
+      text: `Another great day on the job! #${trade}`,
+      hashtags: [trade, 'contractor', 'qualitywork', 'jobsite', 'beforeandafter', 'localservice'],
+    }
+  }
 }
