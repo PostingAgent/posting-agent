@@ -224,8 +224,8 @@ HASHTAGS: [comma-separated list of 6 relevant hashtags without the # symbol]`,
 
     const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
 
-    const captionMatch = responseText.match(/CAPTION:\s*(.+?)(?=\nHASHTAGS:|\n\n|$)/s)
-    const hashtagMatch = responseText.match(/HASHTAGS:\s*(.+)/s)
+   const captionMatch = responseText.match(/CAPTION:\s*([\s\S]+?)(?=\nHASHTAGS:|\n\n|$)/)
+    const hashtagMatch = responseText.match(/HASHTAGS:\s*([\s\S]+)/)
 
     return {
       text: captionMatch?.[1]?.trim() ?? responseText,
