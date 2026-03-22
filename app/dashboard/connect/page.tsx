@@ -46,7 +46,7 @@ export default function ConnectPage() {
       redirect_uri: `${window.location.origin}/api/google/callback`,
       response_type: 'code',
       scope: [
-        'https://www.googleapis.com/auth/photoslibrary.readonly',
+        'https://www.googleapis.com/auth/drive.readonly',
         'openid',
         'email',
       ].join(' '),
