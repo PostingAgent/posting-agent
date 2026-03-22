@@ -225,7 +225,7 @@ HASHTAGS: [comma-separated list of 6 relevant hashtags without the # symbol]`,
       hashtags: hashtagMatch?.[1]?.split(',').map((h: string) => h.trim()) ?? [],
     }
   } catch (err) {
-    console.error('Caption generation error:', err?.message, err?.status, JSON.stringify(err))
+    console.error('Caption generation error:', String(err))
     return {
       text: `Another great day on the job! #${trade}`,
       hashtags: [trade, 'contractor', 'qualitywork', 'jobsite', 'beforeandafter', 'localservice'],
