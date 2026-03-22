@@ -119,7 +119,8 @@ async function fetchNewFiles(
     console.error('Drive API error:', data.error)
     return []
   }
-
+console.log('Drive query:', query)
+  console.log('Drive response:', JSON.stringify(data))
   return data.files ?? []
 }
 
