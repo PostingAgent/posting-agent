@@ -45,10 +45,10 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Use Google Photos API to list albums
+  // Use Google Drive API to list folders
   const res = await fetch(
-    'https://photoslibrary.googleapis.com/v1/albums?pageSize=50',
-    { headers: { Authorization: `Bearer ${token}` } }
+    "https://www.googleapis.com/drive/v3/files?q=mimeType='application/vnd.google-apps.folder'+and+trashed=false&fields=files(id,name)&pageSize=50",
+    { headers: { Authorization: 'Bearer ' + token } }
   )
 
   const data = await res.json()
@@ -57,11 +57,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: data.error.message }, { status: res.status })
   }
 
-  const albums = (data.albums ?? []).map((a: any) => ({
-    id: a.id,
-    title: a.title,
-    mediaItemsCount: a.mediaItemsCount ?? null,
-    coverPhotoBaseUrl: a.coverPhotoBaseUrl ?? null,
+  const albums = (data.files ?? []).map((f: any) => ({
+    id: f.id,
+    title: f.name,
+    mediaItemsCount: null,
+    coverPhotoBaseUrl: null,
   }))
 
   return NextResponse.json({ albums })
