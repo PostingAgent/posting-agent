@@ -124,6 +124,8 @@ async function publishToPlatform(
 // 2. Publish the container
 
 async function postToInstagram(caption: string, imageUrl: string, accessToken: string) {
+  console.log("IG posting with token:", accessToken?.slice(0,20) + "...");
+  console.log("IG image URL:", imageUrl);
   // Get the Instagram Business Account ID linked to this token
   const meRes = await fetch(
     `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
@@ -154,6 +156,7 @@ async function postToInstagram(caption: string, imageUrl: string, accessToken: s
     }
   )
   const containerData = await containerRes.json()
+  console.log("IG container response:", JSON.stringify(containerData));
   if (!containerData.id) throw new Error(`Instagram container error: ${JSON.stringify(containerData)}`)
 
   // Step 2: Publish
@@ -169,6 +172,7 @@ async function postToInstagram(caption: string, imageUrl: string, accessToken: s
     }
   )
   const publishData = await publishRes.json()
+  console.log("IG publish response:", JSON.stringify(publishData));
   if (!publishData.id) throw new Error(`Instagram publish error: ${JSON.stringify(publishData)}`)
 }
 
