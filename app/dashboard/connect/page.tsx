@@ -17,11 +17,34 @@ export default function ConnectPage() {
   const [loadingAlbums, setLoadingAlbums] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [metaConnected, setMetaConnected] = useState(false)
 
   const supabase = createClient()
 
+  function connectMeta() {
+    const params = new URLSearchParams({
+      client_id: "2452114718572183",
+      redirect_uri: window.location.origin + "/api/meta/callback",
+      scope: "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement",
+      response_type: "code",
+    })
+    window.location.href = "https://www.facebook.com/v21.0/dialog/oauth?" + params
+  }
+
+  async function checkMetaConnection() {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase
+      .from("social_tokens")
+      .select("platform")
+      .eq("user_id", user!.id)
+      .eq("platform", "instagram")
+      .single()
+    if (data) setMetaConnected(true)
+  }
+
   useEffect(() => {
     loadProfile()
+    checkMetaConnection()
   }, [])
 
   async function loadProfile() {
@@ -200,6 +223,27 @@ export default function ConnectPage() {
           </div>
         </div>
       )}
+
+      {/* Step 4: Connect Instagram & Facebook */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Step 4 — Connect Instagram & Facebook</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Connect your Instagram Business account to publish posts automatically.
+            </p>
+          </div>
+          {metaConnected ? (
+            <span className="text-xs bg-green-50 text-green-700 font-medium px-3 py-1.5 rounded-full">
+              Connected ✓
+            </span>
+          ) : (
+            <button onClick={connectMeta} className="btn-primary">
+              Connect Instagram
+            </button>
+          )}
+        </div>
+      </div>
 
       {saving && <p className="text-sm text-gray-400">Saving...</p>}
       {saved && <p className="text-sm text-green-600 font-medium">Saved ✓</p>}
