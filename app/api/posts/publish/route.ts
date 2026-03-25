@@ -69,15 +69,17 @@ async function publishPost(post: Post, supabase: Awaited<ReturnType<typeof creat
     .eq('user_id', post.user_id)
 
   const tokenMap: Record<string, string> = {}
-  tokens?.forEach((t: { platform: string, access_token: string }) => {
+  let igUserId = ''
+  tokens?.forEach((t: any) => {
     tokenMap[t.platform] = t.access_token
+    if (t.platform === 'instagram' && t.ig_user_id) igUserId = t.ig_user_id
   })
 
   const fullCaption = `${post.caption}\n\n${post.hashtags?.join(' ')}`
 
   for (const platform of (post.platforms as Platform[])) {
     try {
-      await publishToPlatform(platform, fullCaption, post.image_url, tokenMap[platform])
+      await publishToPlatform(platform, fullCaption, post.image_url, tokenMap[platform], igUserId)
     } catch (err) {
       console.error(`Failed to post to ${platform}:`, err)
       // Don't fail the whole post if one platform fails
@@ -89,7 +91,8 @@ async function publishToPlatform(
   platform: Platform,
   caption: string,
   imageUrl: string,
-  accessToken: string | undefined
+  accessToken: string | undefined,
+  igUserId: string
 ) {
   if (!accessToken) {
     console.log(`No token for ${platform}, skipping`)
@@ -98,7 +101,7 @@ async function publishToPlatform(
 
   switch (platform) {
     case 'instagram':
-      await postToInstagram(caption, imageUrl, accessToken)
+      await postToInstagram(caption, imageUrl, accessToken, igUserId)
       break
     case 'facebook':
       await postToFacebook(caption, imageUrl, accessToken)
@@ -123,28 +126,15 @@ async function publishToPlatform(
 // 1. Create a media container with the image + caption
 // 2. Publish the container
 
-async function postToInstagram(caption: string, imageUrl: string, accessToken: string) {
-  console.log("IG posting with token:", accessToken?.slice(0,20) + "...");
+async function postToInstagram(caption: string, imageUrl: string, accessToken: string, igUserId: string) {
+  console.log("IG posting to account:", igUserId);
   console.log("IG image URL:", imageUrl);
-  // Get the Instagram Business Account ID linked to this token
-  const meRes = await fetch(
-    `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
-  )
-  const meData = await meRes.json()
-  const pageId = meData.data?.[0]?.id
-  if (!pageId) throw new Error('No Instagram page found')
 
-  // Get the Instagram account ID connected to this Facebook page
-  const igRes = await fetch(
-    `https://graph.facebook.com/v19.0/${pageId}?fields=instagram_business_account&access_token=${accessToken}`
-  )
-  const igData = await igRes.json()
-  const igAccountId = igData.instagram_business_account?.id
-  if (!igAccountId) throw new Error('No Instagram Business account linked to page')
+  if (!igUserId) throw new Error('No Instagram user ID found')
 
   // Step 1: Create media container
   const containerRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccountId}/media`,
+    `https://graph.facebook.com/v21.0/${igUserId}/media`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -161,7 +151,7 @@ async function postToInstagram(caption: string, imageUrl: string, accessToken: s
 
   // Step 2: Publish
   const publishRes = await fetch(
-    `https://graph.facebook.com/v19.0/${igAccountId}/media_publish`,
+    `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -175,29 +165,35 @@ async function postToInstagram(caption: string, imageUrl: string, accessToken: s
   console.log("IG publish response:", JSON.stringify(publishData));
   if (!publishData.id) throw new Error(`Instagram publish error: ${JSON.stringify(publishData)}`)
 }
-
 // ── Facebook (via Meta Graph API) ─────────────────────────────────────────────
 async function postToFacebook(caption: string, imageUrl: string, accessToken: string) {
+  console.log("FB posting with token:", accessToken?.slice(0,20) + "...");
+
+  // Get pages with this token
   const meRes = await fetch(
-    `https://graph.facebook.com/v19.0/me/accounts?access_token=${accessToken}`
+    `https://graph.facebook.com/v21.0/me/accounts?access_token=${accessToken}`
   )
   const meData = await meRes.json()
+  console.log("FB pages response:", JSON.stringify(meData));
   const page = meData.data?.[0]
-  if (!page) throw new Error('No Facebook page found')
+  if (!page) {
+    console.log("No FB page found, skipping Facebook post");
+    return;
+  }
 
-  // Post photo to Facebook Page
   const res = await fetch(
-    `https://graph.facebook.com/v19.0/${page.id}/photos`,
+    `https://graph.facebook.com/v21.0/${page.id}/photos`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         url: imageUrl,
         caption,
-        access_token: page.access_token,  // use page token, not user token
+        access_token: page.access_token,
       }),
     }
   )
   const data = await res.json()
+  console.log("FB post response:", JSON.stringify(data));
   if (!data.id) throw new Error(`Facebook post error: ${JSON.stringify(data)}`)
 }
