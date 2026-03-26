@@ -18,6 +18,7 @@ const PLATFORM_COLORS: Record<Platform, string> = {
 export default function ReviewPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
+  const [checking, setChecking] = useState(false)
   const [saving, setSaving] = useState<string | null>(null)  // post id being saved
 
   const supabase = createClient()
@@ -91,10 +92,23 @@ export default function ReviewPage() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Review posts</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Posting Agent wrote these captions from your new photos. Edit anything, then approve.
-        </p>
+        <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Review posts</h1>
+          <p className="text-sm text-gray-500">Posting Agent wrote these captions from your new photos. Edit anything, then approve.</p>
+        </div>
+        <button
+          onClick={async () => {
+            setChecking(true)
+            await fetch('/api/watch')
+            window.location.reload()
+          }}
+          disabled={checking}
+          className="btn-primary"
+        >
+          {checking ? 'Checking...' : 'Check for new photos'}
+        </button>
+      </div>
       </div>
 
       {posts.length === 0 ? (
