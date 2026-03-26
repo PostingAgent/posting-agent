@@ -172,6 +172,7 @@ async function processPhoto(
     caption: caption.text,
     hashtags: caption.hashtags,
     google_media_id: item.id,
+    platforms: ["instagram", "facebook"],
     status: user.auto_post ? 'scheduled' : 'pending_review',
     scheduled_for: user.auto_post ? new Date(Date.now() + 5 * 60 * 1000).toISOString() : null,
   })
