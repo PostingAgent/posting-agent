@@ -65,19 +65,18 @@ export async function POST(request: Request) {
 
   let success = true
 
-  for (const platform of (post.platforms as Platform[])) {
-    const accessToken = tokenMap[platform]
-    if (!accessToken) {
-      console.log(`No token for ${platform}, skipping`)
-      continue
-    }
-
+  // For now, only publish to Instagram
+  const igToken = tokenMap['instagram']
+  if (igToken && igUserId) {
     try {
-      await publishToPlatform(platform, fullCaption, post.image_url, accessToken, igUserId, pageId)
+      await postToInstagram(fullCaption, post.image_url, igToken, igUserId)
     } catch (err) {
-      console.error(`Failed to post to ${platform}:`, err)
+      console.error('Failed to post to Instagram:', err)
       success = false
     }
+  } else {
+    console.log('No Instagram token or user ID found, skipping')
+    success = false
   }
 
   if (success) {
