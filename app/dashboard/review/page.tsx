@@ -19,6 +19,7 @@ export default function ReviewPage() {
   const [posts, setPosts] = useState<Post[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)  // post id being saved
+  const [posting, setPosting] = useState<string | null>(null)  // post id being published now
 
   const supabase = createClient()
 
@@ -63,6 +64,27 @@ export default function ReviewPage() {
       setPosts(prev => prev.filter(p => p.id !== post.id))
     }
     setSaving(null)
+  }
+
+  // Post now — immediately publishes to all platforms
+  async function postNow(post: Post) {
+    setPosting(post.id)
+    try {
+      const res = await fetch('/api/posts/publish-now', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ postId: post.id, caption: post.caption }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setPosts(prev => prev.filter(p => p.id !== post.id))
+      } else {
+        alert('Publishing failed — check your connected accounts and try again.')
+      }
+    } catch {
+      alert('Something went wrong. Please try again.')
+    }
+    setPosting(null)
   }
 
   // Reject post — deletes it
@@ -157,15 +179,22 @@ export default function ReviewPage() {
                   {/* Action buttons */}
                   <div className="flex gap-2 mt-4">
                     <button
-                      onClick={() => approvePost(post)}
-                      disabled={saving === post.id}
+                      onClick={() => postNow(post)}
+                      disabled={posting === post.id || saving === post.id}
                       className="btn-primary disabled:opacity-50"
                     >
-                      {saving === post.id ? 'Saving...' : 'Approve & schedule'}
+                      {posting === post.id ? 'Posting...' : 'Post now'}
+                    </button>
+                    <button
+                      onClick={() => approvePost(post)}
+                      disabled={saving === post.id || posting === post.id}
+                      className="btn-secondary disabled:opacity-50"
+                    >
+                      {saving === post.id ? 'Saving...' : 'Schedule for later'}
                     </button>
                     <button
                       onClick={() => rejectPost(post.id)}
-                      disabled={saving === post.id}
+                      disabled={saving === post.id || posting === post.id}
                       className="btn-secondary disabled:opacity-50"
                     >
                       Discard
