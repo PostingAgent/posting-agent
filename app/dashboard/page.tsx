@@ -4,6 +4,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Post } from '@/types'
+import PostNowButton from '@/components/PostNowButton'
 
 // Helper: format a date string into "Mar 19 · 9:00 AM"
 function formatDate(iso: string) {
@@ -149,6 +150,11 @@ export default async function DashboardPage() {
                     </span>
                   ))}
                 </div>
+
+                {/* Post now button for actionable posts */}
+                {(post.status === 'pending_review' || post.status === 'scheduled') && (
+                  <PostNowButton postId={post.id} caption={post.caption} />
+                )}
 
                 {/* Status badge */}
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium flex-shrink-0 ${STATUS_STYLES[post.status] ?? 'bg-gray-100 text-gray-600'}`}>
