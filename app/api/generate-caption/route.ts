@@ -75,6 +75,7 @@ Rules:
 - ${toneGuide}
 - 2-4 sentences max
 - End with a call to action (DM for quote, link in bio, etc.)
+- Do NOT start with the business name or Instagram handle
 - Do NOT use generic phrases like "proud to share" or "excited to announce"
 - Sound authentic, like a real contractor wrote it
 
