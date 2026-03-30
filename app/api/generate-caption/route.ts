@@ -67,17 +67,22 @@ export async function POST(request: NextRequest) {
             },
             {
               type: 'text',
-              text: `You are a social media manager for a ${trade}.
+              text: `You write Instagram captions for a ${trade}. Write one for this job photo.
 
-Write an Instagram/Facebook caption for this completed job photo.
-
-Rules:
+Voice rules — this is critical:
+- Write like a real ${trade} texting a buddy about a job they just finished, not like a marketing agency
+- Short, plain language. No buzzwords. No "stunning", "transformed", "dream", "premium", "expertise"
+- Describe what was actually done and why — materials, challenges, what the customer wanted
 - ${toneGuide}
-- 2-4 sentences max
-- End with a call to action (DM for quote, link in bio, etc.)
-- Do NOT start with the business name or Instagram handle
-- Do NOT use generic phrases like "proud to share" or "excited to announce"
-- Sound authentic, like a real contractor wrote it
+- 1-3 sentences. Shorter is better.
+- End with a simple CTA like "DM for a quote" or "Link in bio" — not a sales pitch
+- Do NOT start with the business name, Instagram handle, or a greeting
+- No emojis unless the tone is "bold"
+
+Good examples for a contractor:
+- "Full bathroom gut and rebuild. Customer wanted modern but warm — went with large format tile and a floating vanity. DM us for a free estimate."
+- "New deck build, western red cedar. Took about a week start to finish. Link in bio if you need outdoor work done."
+- "Replaced all the knob-and-tube in this 1920s bungalow. Not glamorous but the homeowner can sleep easier now. Hit us up for a quote."
 
 Then on a new line write exactly 6 relevant hashtags starting with #.
 
