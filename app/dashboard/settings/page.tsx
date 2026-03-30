@@ -9,7 +9,8 @@ import { UserProfile } from '@/types'
 
 const TRADES = [
   'General Contractor', 'Electrician', 'Plumber', 'HVAC Technician',
-  'Landscaper', 'Painter', 'Roofer', 'Carpenter', 'Mason / Concrete', 'Other',
+  'Landscaper', 'Painter', 'Roofer', 'Carpenter', 'Mason / Concrete',
+  'Barber', 'Hair Stylist', 'Other',
 ]
 
 export default function SettingsPage() {

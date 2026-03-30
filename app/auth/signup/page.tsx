@@ -18,6 +18,8 @@ const TRADES = [
   'Roofer',
   'Carpenter',
   'Mason / Concrete',
+  'Barber',
+  'Hair Stylist',
   'Other',
 ]
 
