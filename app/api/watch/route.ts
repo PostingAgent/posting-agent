@@ -205,7 +205,17 @@ async function generateCaption(
             },
             {
               type: 'text',
-              text: `You are a social media manager for a ${trade} business. Write a short, engaging social media caption for this job site photo. Tone: ${tone || 'professional but friendly'}.
+              text: `You write Instagram captions for a ${trade}. Write one for this job photo.
+
+Voice rules — this is critical:
+- Write like a real ${trade} texting a buddy about a job they just finished, not like a marketing agency
+- Short, plain language. No buzzwords. No "stunning", "transformed", "dream", "premium", "expertise"
+- Describe what was actually done and why — materials, challenges, what the customer wanted
+- Tone: ${tone || 'professional but friendly'}
+- 1-3 sentences. Shorter is better.
+- End with a simple CTA like "DM for a quote" or "Link in bio" — not a sales pitch
+- Do NOT start with the business name, Instagram handle, or a greeting
+- No emojis unless the tone is "bold"
 
 Return your response in this exact format:
 CAPTION: [your caption here]
