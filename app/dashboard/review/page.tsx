@@ -38,7 +38,7 @@ const PHOTO_FILTERS = [
   { value: 'fade', label: 'Fade', css: 'contrast(90%) brightness(110%) saturate(80%)' },
 ]
 
-type FilterStatus = 'all' | PostStatus
+type FilterStatus = PostStatus
 
 export default function ReviewPage() {
   const [posts, setPosts] = useState<Post[]>([])
