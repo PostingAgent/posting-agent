@@ -63,20 +63,33 @@ export async function POST(request: Request) {
 
   const fullCaption = `${caption ?? post.caption}\n\n${post.hashtags?.join(' ')}`
 
-  let success = true
+  let success = false
+  let errorMessage = ''
 
-  // For now, only publish to Instagram
+  // Try Instagram
   const igToken = tokenMap['instagram']
   if (igToken && igUserId) {
     try {
       await postToInstagram(fullCaption, post.image_url, igToken, igUserId)
-    } catch (err) {
+      success = true
+    } catch (err: any) {
       console.error('Failed to post to Instagram:', err)
-      success = false
+      errorMessage = err.message || 'Instagram publish failed'
     }
   } else {
-    console.log('No Instagram token or user ID found, skipping')
-    success = false
+    errorMessage = 'No Instagram account connected'
+  }
+
+  // Try Facebook (independent of Instagram)
+  const fbToken = tokenMap['facebook']
+  if (fbToken && pageId) {
+    try {
+      await postToFacebook(fullCaption, post.image_url, fbToken, pageId)
+      success = true // success if either platform works
+    } catch (err: any) {
+      console.error('Failed to post to Facebook:', err)
+      if (!success) errorMessage += '. Facebook: ' + (err.message || 'failed')
+    }
   }
 
   if (success) {
@@ -91,7 +104,7 @@ export async function POST(request: Request) {
       .eq('id', postId)
   }
 
-  return NextResponse.json({ success, postId })
+  return NextResponse.json({ success, postId, error: errorMessage || undefined })
 }
 
 // ── Platform publishing (matches cron publish route logic) ───────────────────

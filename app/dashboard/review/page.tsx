@@ -139,7 +139,10 @@ export default function ReviewPage() {
           p.id === post.id ? { ...p, status: 'posted' as PostStatus } : p
         ))
       } else {
-        alert('Publishing failed — check your connected accounts and try again.')
+        alert(`Post failed: ${result.error || 'Check that your Instagram/Facebook is connected.'}`)
+        setPosts(prev => prev.map(p =>
+          p.id === post.id ? { ...p, status: 'failed' as PostStatus } : p
+        ))
       }
     } catch {
       alert('Something went wrong. Please try again.')
