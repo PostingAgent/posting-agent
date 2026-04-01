@@ -204,7 +204,7 @@ export default function ReviewPage() {
         <div className="flex gap-2 flex-wrap">
           {(['posted', 'pending_review', 'approved', 'scheduled', 'failed'] as FilterStatus[]).map(status => {
             const count = posts.filter(p => p.status === status).length
-            if (count === 0 && status !== 'pending_review') return null
+            if (count === 0 && status !== 'pending_review' && status !== 'failed') return null
             const label = STATUS_LABELS[status].label
             return (
               <button
