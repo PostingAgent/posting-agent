@@ -47,7 +47,7 @@ export default function ReviewPage() {
   const [saving, setSaving] = useState<string | null>(null)
   const [posting, setPosting] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
-  const [filter, setFilter] = useState<FilterStatus>('pending_review')
+  const [filter, setFilter] = useState<FilterStatus>('posted')
   const [postTones, setPostTones] = useState<Record<string, string>>({})
   const [postFilters, setPostFilters] = useState<Record<string, string>>({})
   const [activeOverlay, setActiveOverlay] = useState<string | null>(null)
@@ -192,7 +192,7 @@ export default function ReviewPage() {
 
         {/* Status filter tabs */}
         <div className="flex gap-2 flex-wrap">
-          {(['pending_review', 'posted', 'approved', 'scheduled', 'failed'] as FilterStatus[]).map(status => {
+          {(['posted', 'pending_review', 'approved', 'scheduled', 'failed'] as FilterStatus[]).map(status => {
             const count = posts.filter(p => p.status === status).length
             if (count === 0 && status !== 'pending_review') return null
             const label = STATUS_LABELS[status].label
