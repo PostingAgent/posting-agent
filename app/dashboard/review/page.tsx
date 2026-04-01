@@ -154,6 +154,16 @@ export default function ReviewPage() {
     setSaving(null)
   }
 
+  // Save edits to an existing post (caption, hashtags)
+  async function saveEdits(post: Post) {
+    setSaving(post.id)
+    await supabase
+      .from('posts')
+      .update({ caption: post.caption })
+      .eq('id', post.id)
+    setSaving(null)
+  }
+
   function getDefaultScheduleTime() {
     const tomorrow = new Date()
     tomorrow.setDate(tomorrow.getDate() + 1)
@@ -283,23 +293,21 @@ export default function ReviewPage() {
                         </div>
 
                         {/* Photo filters */}
-                        {isActionable && (
-                          <div className="flex gap-1 mt-2 flex-wrap">
-                            {PHOTO_FILTERS.map(f => (
-                              <button
-                                key={f.value}
-                                onClick={() => setPostFilters(prev => ({ ...prev, [post.id]: f.value }))}
-                                className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
-                                  activeFilter === f.value
-                                    ? 'bg-brand-600 text-white'
-                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                                }`}
-                              >
-                                {f.label}
-                              </button>
-                            ))}
-                          </div>
-                        )}
+                        <div className="flex gap-1 mt-2 flex-wrap">
+                          {PHOTO_FILTERS.map(f => (
+                            <button
+                              key={f.value}
+                              onClick={() => setPostFilters(prev => ({ ...prev, [post.id]: f.value }))}
+                              className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                                activeFilter === f.value
+                                  ? 'bg-brand-600 text-white'
+                                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                              }`}
+                            >
+                              {f.label}
+                            </button>
+                          ))}
+                        </div>
                       </div>
 
                       {/* Caption + controls */}
@@ -316,19 +324,13 @@ export default function ReviewPage() {
                           ))}
                         </div>
 
-                        {/* Caption */}
-                        {post.status === 'posted' || post.status === 'failed' ? (
-                          <p className="text-sm text-gray-800 bg-gray-50 rounded-lg p-3 leading-relaxed">
-                            {post.caption}
-                          </p>
-                        ) : (
-                          <textarea
-                            className="w-full text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400 leading-relaxed"
-                            rows={4}
-                            value={post.caption}
-                            onChange={e => updateCaption(post.id, e.target.value)}
-                          />
-                        )}
+                        {/* Caption — always editable */}
+                        <textarea
+                          className="w-full text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400 leading-relaxed"
+                          rows={4}
+                          value={post.caption}
+                          onChange={e => updateCaption(post.id, e.target.value)}
+                        />
 
                         {/* Hashtags */}
                         {post.hashtags?.length > 0 && (
@@ -344,61 +346,78 @@ export default function ReviewPage() {
                           </div>
                         )}
 
-                        {/* Regenerate + tone picker */}
-                        {isActionable && (
-                          <div className="flex items-center gap-2 mt-3 flex-wrap">
-                            <button
-                              onClick={() => regenerateCaption(post)}
-                              disabled={regenerating === post.id}
-                              className="btn-secondary text-xs disabled:opacity-50 flex items-center gap-1.5"
-                            >
-                              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
-                                <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
-                              </svg>
-                              {regenerating === post.id ? 'Regenerating...' : 'Regenerate caption'}
-                            </button>
-                            <select
-                              value={postTones[post.id] ?? ''}
-                              onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
-                              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
-                            >
-                              <option value="">Default tone</option>
-                              {TONES.map(t => (
-                                <option key={t.value} value={t.value}>{t.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                        {/* Regenerate + tone picker — always available */}
+                        <div className="flex items-center gap-2 mt-3 flex-wrap">
+                          <button
+                            onClick={() => regenerateCaption(post)}
+                            disabled={regenerating === post.id}
+                            className="btn-secondary text-xs disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
+                              <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            {regenerating === post.id ? 'Regenerating...' : 'Regenerate caption'}
+                          </button>
+                          <select
+                            value={postTones[post.id] ?? ''}
+                            onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
+                          >
+                            <option value="">Default tone</option>
+                            {TONES.map(t => (
+                              <option key={t.value} value={t.value}>{t.label}</option>
+                            ))}
+                          </select>
+                        </div>
 
                         {/* Action buttons */}
-                        {isActionable && (
-                          <div className="flex flex-wrap gap-2 mt-4">
-                            <button
-                              onClick={() => postNow(post)}
-                              disabled={posting === post.id || saving === post.id}
-                              className="btn-primary disabled:opacity-50"
-                            >
-                              {posting === post.id ? 'Posting...' : 'Post now'}
-                            </button>
-                            {post.status === 'pending_review' && (
+                        <div className="flex flex-wrap gap-2 mt-4">
+                          {isActionable ? (
+                            <>
                               <button
-                                onClick={() => approvePost(post)}
+                                onClick={() => postNow(post)}
+                                disabled={posting === post.id || saving === post.id}
+                                className="btn-primary disabled:opacity-50"
+                              >
+                                {posting === post.id ? 'Posting...' : 'Post now'}
+                              </button>
+                              {post.status === 'pending_review' && (
+                                <button
+                                  onClick={() => approvePost(post)}
+                                  disabled={saving === post.id || posting === post.id}
+                                  className="btn-secondary disabled:opacity-50"
+                                >
+                                  {saving === post.id ? 'Saving...' : 'Schedule for later'}
+                                </button>
+                              )}
+                              <button
+                                onClick={() => rejectPost(post.id)}
                                 disabled={saving === post.id || posting === post.id}
                                 className="btn-secondary disabled:opacity-50"
                               >
-                                {saving === post.id ? 'Saving...' : 'Schedule for later'}
+                                Discard
                               </button>
-                            )}
-                            <button
-                              onClick={() => rejectPost(post.id)}
-                              disabled={saving === post.id || posting === post.id}
-                              className="btn-secondary disabled:opacity-50"
-                            >
-                              Discard
-                            </button>
-                          </div>
-                        )}
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => saveEdits(post)}
+                                disabled={saving === post.id}
+                                className="btn-primary disabled:opacity-50"
+                              >
+                                {saving === post.id ? 'Saving...' : 'Save changes'}
+                              </button>
+                              <button
+                                onClick={() => postNow(post)}
+                                disabled={posting === post.id || saving === post.id}
+                                className="btn-secondary disabled:opacity-50"
+                              >
+                                {posting === post.id ? 'Reposting...' : 'Repost'}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
