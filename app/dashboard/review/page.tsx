@@ -47,9 +47,10 @@ export default function ReviewPage() {
   const [saving, setSaving] = useState<string | null>(null)
   const [posting, setPosting] = useState<string | null>(null)
   const [regenerating, setRegenerating] = useState<string | null>(null)
-  const [filter, setFilter] = useState<FilterStatus>('all')
+  const [filter, setFilter] = useState<FilterStatus>('pending_review')
   const [postTones, setPostTones] = useState<Record<string, string>>({})
   const [postFilters, setPostFilters] = useState<Record<string, string>>({})
+  const [activeOverlay, setActiveOverlay] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -193,10 +194,10 @@ export default function ReviewPage() {
 
         {/* Status filter tabs */}
         <div className="flex gap-2 flex-wrap">
-          {(['all', 'pending_review', 'approved', 'scheduled', 'posted', 'failed'] as FilterStatus[]).map(status => {
-            const count = status === 'all' ? posts.length : posts.filter(p => p.status === status).length
-            if (status !== 'all' && count === 0) return null
-            const label = status === 'all' ? 'All' : STATUS_LABELS[status].label
+          {(['pending_review', 'posted', 'approved', 'scheduled', 'failed'] as FilterStatus[]).map(status => {
+            const count = posts.filter(p => p.status === status).length
+            if (count === 0) return null
+            const label = STATUS_LABELS[status].label
             return (
               <button
                 key={status}
@@ -228,9 +229,12 @@ export default function ReviewPage() {
             return (
               <div key={post.id} className="card">
                 <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                  {/* Photo with filter */}
+                  {/* Photo with tap/hover overlay */}
                   <div className="flex-shrink-0">
-                    <div className="w-full sm:w-32 h-48 sm:h-32 rounded-xl bg-gray-100 overflow-hidden">
+                    <div
+                      className="relative w-full sm:w-40 h-48 sm:h-40 rounded-xl bg-gray-100 overflow-hidden cursor-pointer"
+                      onClick={() => isActionable && setActiveOverlay(activeOverlay === post.id ? null : post.id)}
+                    >
                       {post.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -240,26 +244,80 @@ export default function ReviewPage() {
                           style={filterCss ? { filter: filterCss } : undefined}
                         />
                       )}
-                    </div>
 
-                    {/* Photo filter picker */}
-                    {isActionable && (
-                      <div className="flex gap-1 mt-2 flex-wrap">
-                        {PHOTO_FILTERS.map(f => (
+                      {/* Tap/click overlay with actions */}
+                      {isActionable && activeOverlay === post.id && (
+                        <div
+                          className="absolute inset-0 bg-black/70 flex flex-col justify-between p-3"
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {/* Filters row */}
+                          <div>
+                            <p className="text-[10px] text-white/70 font-medium mb-1.5 uppercase tracking-wider">Filter</p>
+                            <div className="flex gap-1 flex-wrap">
+                              {PHOTO_FILTERS.map(f => (
+                                <button
+                                  key={f.value}
+                                  onClick={() => setPostFilters(prev => ({ ...prev, [post.id]: f.value }))}
+                                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                                    activeFilter === f.value
+                                      ? 'bg-white text-gray-900'
+                                      : 'bg-white/20 text-white hover:bg-white/30'
+                                  }`}
+                                >
+                                  {f.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Regenerate + tone */}
+                          <div>
+                            <select
+                              value={postTones[post.id] ?? ''}
+                              onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
+                              className="w-full text-[11px] bg-white/20 text-white border-0 rounded-md px-2 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-white/50"
+                            >
+                              <option value="" className="text-gray-900">Default tone</option>
+                              {TONES.map(t => (
+                                <option key={t.value} value={t.value} className="text-gray-900">{t.label}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => regenerateCaption(post)}
+                              disabled={regenerating === post.id}
+                              className="w-full text-[11px] font-medium bg-white text-gray-900 rounded-md py-1.5 hover:bg-gray-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
+                                <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              {regenerating === post.id ? 'Regenerating...' : 'Regenerate'}
+                            </button>
+                          </div>
+
+                          {/* Close button */}
                           <button
-                            key={f.value}
-                            onClick={() => setPostFilters(prev => ({ ...prev, [post.id]: f.value }))}
-                            className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
-                              activeFilter === f.value
-                                ? 'bg-brand-600 text-white'
-                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            }`}
+                            onClick={() => setActiveOverlay(null)}
+                            className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40 transition-colors"
                           >
-                            {f.label}
+                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                              <path d="M2 2l8 8M10 2l-8 8"/>
+                            </svg>
                           </button>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      )}
+
+                      {/* Tap hint icon */}
+                      {isActionable && activeOverlay !== post.id && (
+                        <div className="absolute bottom-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-white">
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                            <circle cx="8" cy="8" r="2"/>
+                            <path d="M8 2v2M8 12v2M2 8h2M12 8h2"/>
+                          </svg>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Caption editor + controls */}
@@ -310,32 +368,6 @@ export default function ReviewPage() {
                       </div>
                     )}
 
-                    {/* Regenerate caption + tone picker */}
-                    {isActionable && (
-                      <div className="flex items-center gap-2 mt-3 flex-wrap">
-                        <button
-                          onClick={() => regenerateCaption(post)}
-                          disabled={regenerating === post.id}
-                          className="btn-secondary text-xs disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                            <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
-                            <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                          {regenerating === post.id ? 'Regenerating...' : 'Regenerate caption'}
-                        </button>
-                        <select
-                          value={postTones[post.id] ?? ''}
-                          onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
-                          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
-                        >
-                          <option value="">Default tone</option>
-                          {TONES.map(t => (
-                            <option key={t.value} value={t.value}>{t.label}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
 
                     {/* Action buttons */}
                     {isActionable && (
