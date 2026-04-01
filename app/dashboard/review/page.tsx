@@ -50,7 +50,7 @@ export default function ReviewPage() {
   const [filter, setFilter] = useState<FilterStatus>('posted')
   const [postTones, setPostTones] = useState<Record<string, string>>({})
   const [postFilters, setPostFilters] = useState<Record<string, string>>({})
-  const [activeOverlay, setActiveOverlay] = useState<string | null>(null)
+  const [selectedPost, setSelectedPost] = useState<string | null>(null)
 
   const supabase = createClient()
 
@@ -218,185 +218,191 @@ export default function ReviewPage() {
           <p className="text-gray-400 text-sm">No posts to show.</p>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-2">
           {filteredPosts.map(post => {
+            const isSelected = selectedPost === post.id
             const activeFilter = postFilters[post.id] ?? 'none'
             const filterCss = PHOTO_FILTERS.find(f => f.value === activeFilter)?.css ?? ''
             const isActionable = post.status === 'pending_review' || post.status === 'approved' || post.status === 'scheduled'
 
             return (
-              <div key={post.id} className="card">
-                <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
-                  {/* Photo with tap/hover overlay */}
-                  <div className="flex-shrink-0">
-                    <div
-                      className="relative w-full sm:w-40 h-48 sm:h-40 rounded-xl bg-gray-100 overflow-hidden cursor-pointer"
-                      onClick={() => isActionable && setActiveOverlay(activeOverlay === post.id ? null : post.id)}
-                    >
-                      {post.image_url && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={post.image_url}
-                          alt="job photo"
-                          className="w-full h-full object-cover"
-                          style={filterCss ? { filter: filterCss } : undefined}
-                        />
-                      )}
+              <div key={post.id} className="card overflow-hidden">
+                {/* Compact row — always visible */}
+                <div
+                  className="flex items-center gap-3 cursor-pointer"
+                  onClick={() => setSelectedPost(isSelected ? null : post.id)}
+                >
+                  {/* Thumbnail */}
+                  <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden flex-shrink-0">
+                    {post.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={post.image_url}
+                        alt="job photo"
+                        className="w-full h-full object-cover"
+                        style={filterCss ? { filter: filterCss } : undefined}
+                      />
+                    )}
+                  </div>
 
-                      {/* Tap/click overlay with actions */}
-                      {isActionable && activeOverlay === post.id && (
-                        <div
-                          className="absolute inset-0 bg-black/70 flex flex-col justify-between p-3"
-                          onClick={e => e.stopPropagation()}
-                        >
-                          {/* Filters row */}
-                          <div>
-                            <p className="text-[10px] text-white/70 font-medium mb-1.5 uppercase tracking-wider">Filter</p>
-                            <div className="flex gap-1 flex-wrap">
-                              {PHOTO_FILTERS.map(f => (
-                                <button
-                                  key={f.value}
-                                  onClick={() => setPostFilters(prev => ({ ...prev, [post.id]: f.value }))}
-                                  className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
-                                    activeFilter === f.value
-                                      ? 'bg-white text-gray-900'
-                                      : 'bg-white/20 text-white hover:bg-white/30'
-                                  }`}
-                                >
-                                  {f.label}
-                                </button>
-                              ))}
-                            </div>
+                  {/* Caption preview */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-800 truncate">{post.caption}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {new Date(post.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  {/* Status badge */}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${STATUS_LABELS[post.status].color}`}>
+                    {STATUS_LABELS[post.status].label}
+                  </span>
+
+                  {/* Expand arrow */}
+                  <svg className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${isSelected ? 'rotate-180' : ''}`} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                    <path d="M4 6l4 4 4-4"/>
+                  </svg>
+                </div>
+
+                {/* Expanded edit view */}
+                {isSelected && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <div className="flex flex-col sm:flex-row gap-4 sm:gap-5">
+                      {/* Large photo + filters */}
+                      <div className="flex-shrink-0">
+                        <div className="w-full sm:w-48 h-48 rounded-xl bg-gray-100 overflow-hidden">
+                          {post.image_url && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={post.image_url}
+                              alt="job photo"
+                              className="w-full h-full object-cover"
+                              style={filterCss ? { filter: filterCss } : undefined}
+                            />
+                          )}
+                        </div>
+
+                        {/* Photo filters */}
+                        {isActionable && (
+                          <div className="flex gap-1 mt-2 flex-wrap">
+                            {PHOTO_FILTERS.map(f => (
+                              <button
+                                key={f.value}
+                                onClick={() => setPostFilters(prev => ({ ...prev, [post.id]: f.value }))}
+                                className={`text-[10px] px-2 py-1 rounded-md transition-colors ${
+                                  activeFilter === f.value
+                                    ? 'bg-brand-600 text-white'
+                                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                                }`}
+                              >
+                                {f.label}
+                              </button>
+                            ))}
                           </div>
+                        )}
+                      </div>
 
-                          {/* Regenerate + tone */}
-                          <div>
-                            <select
-                              value={postTones[post.id] ?? ''}
-                              onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
-                              className="w-full text-[11px] bg-white/20 text-white border-0 rounded-md px-2 py-1.5 mb-1.5 focus:outline-none focus:ring-1 focus:ring-white/50"
+                      {/* Caption + controls */}
+                      <div className="flex-1 min-w-0">
+                        {/* Platform badges */}
+                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                          {post.platforms?.map((p: Platform) => (
+                            <span
+                              key={p}
+                              className={`${PLATFORM_COLORS[p]} text-white text-xs px-2 py-0.5 rounded-full capitalize`}
                             >
-                              <option value="" className="text-gray-900">Default tone</option>
-                              {TONES.map(t => (
-                                <option key={t.value} value={t.value} className="text-gray-900">{t.label}</option>
-                              ))}
-                            </select>
+                              {p}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Caption */}
+                        {post.status === 'posted' || post.status === 'failed' ? (
+                          <p className="text-sm text-gray-800 bg-gray-50 rounded-lg p-3 leading-relaxed">
+                            {post.caption}
+                          </p>
+                        ) : (
+                          <textarea
+                            className="w-full text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400 leading-relaxed"
+                            rows={4}
+                            value={post.caption}
+                            onChange={e => updateCaption(post.id, e.target.value)}
+                          />
+                        )}
+
+                        {/* Hashtags */}
+                        {post.hashtags?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {post.hashtags.map((tag: string) => (
+                              <span
+                                key={tag}
+                                className="text-xs bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Regenerate + tone picker */}
+                        {isActionable && (
+                          <div className="flex items-center gap-2 mt-3 flex-wrap">
                             <button
                               onClick={() => regenerateCaption(post)}
                               disabled={regenerating === post.id}
-                              className="w-full text-[11px] font-medium bg-white text-gray-900 rounded-md py-1.5 hover:bg-gray-100 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                              className="btn-secondary text-xs disabled:opacity-50 flex items-center gap-1.5"
                             >
-                              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                                 <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
                                 <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
                               </svg>
-                              {regenerating === post.id ? 'Regenerating...' : 'Regenerate'}
+                              {regenerating === post.id ? 'Regenerating...' : 'Regenerate caption'}
+                            </button>
+                            <select
+                              value={postTones[post.id] ?? ''}
+                              onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
+                              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
+                            >
+                              <option value="">Default tone</option>
+                              {TONES.map(t => (
+                                <option key={t.value} value={t.value}>{t.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        {isActionable && (
+                          <div className="flex flex-wrap gap-2 mt-4">
+                            <button
+                              onClick={() => postNow(post)}
+                              disabled={posting === post.id || saving === post.id}
+                              className="btn-primary disabled:opacity-50"
+                            >
+                              {posting === post.id ? 'Posting...' : 'Post now'}
+                            </button>
+                            {post.status === 'pending_review' && (
+                              <button
+                                onClick={() => approvePost(post)}
+                                disabled={saving === post.id || posting === post.id}
+                                className="btn-secondary disabled:opacity-50"
+                              >
+                                {saving === post.id ? 'Saving...' : 'Schedule for later'}
+                              </button>
+                            )}
+                            <button
+                              onClick={() => rejectPost(post.id)}
+                              disabled={saving === post.id || posting === post.id}
+                              className="btn-secondary disabled:opacity-50"
+                            >
+                              Discard
                             </button>
                           </div>
-
-                          {/* Close button */}
-                          <button
-                            onClick={() => setActiveOverlay(null)}
-                            className="absolute top-1.5 right-1.5 w-6 h-6 flex items-center justify-center rounded-full bg-white/20 text-white hover:bg-white/40 transition-colors"
-                          >
-                            <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                              <path d="M2 2l8 8M10 2l-8 8"/>
-                            </svg>
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Tap hint icon */}
-                      {isActionable && activeOverlay !== post.id && (
-                        <div className="absolute bottom-2 right-2 w-6 h-6 flex items-center justify-center rounded-full bg-black/40 text-white">
-                          <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                            <circle cx="8" cy="8" r="2"/>
-                            <path d="M8 2v2M8 12v2M2 8h2M12 8h2"/>
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Caption editor + controls */}
-                  <div className="flex-1 min-w-0">
-                    {/* Status + platform badges */}
-                    <div className="flex items-center gap-2 mb-3 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_LABELS[post.status].color}`}>
-                        {STATUS_LABELS[post.status].label}
-                      </span>
-                      {post.platforms?.map((p: Platform) => (
-                        <span
-                          key={p}
-                          className={`${PLATFORM_COLORS[p]} text-white text-xs px-2 py-0.5 rounded-full capitalize`}
-                        >
-                          {p}
-                        </span>
-                      ))}
-                      <span className="text-xs text-gray-400 ml-auto">
-                        {new Date(post.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-
-                    {/* Caption */}
-                    {post.status === 'posted' || post.status === 'failed' ? (
-                      <p className="text-sm text-gray-800 bg-gray-50 rounded-lg p-3 leading-relaxed">
-                        {post.caption}
-                      </p>
-                    ) : (
-                      <textarea
-                        className="w-full text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-3 resize-none focus:outline-none focus:ring-2 focus:ring-brand-400 leading-relaxed"
-                        rows={4}
-                        value={post.caption}
-                        onChange={e => updateCaption(post.id, e.target.value)}
-                      />
-                    )}
-
-                    {/* Hashtags */}
-                    {post.hashtags?.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {post.hashtags.map((tag: string) => (
-                          <span
-                            key={tag}
-                            className="text-xs bg-brand-50 text-brand-600 px-2 py-0.5 rounded-full"
-                          >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-
-                    {/* Action buttons */}
-                    {isActionable && (
-                      <div className="flex flex-wrap gap-2 mt-4">
-                        <button
-                          onClick={() => postNow(post)}
-                          disabled={posting === post.id || saving === post.id}
-                          className="btn-primary disabled:opacity-50"
-                        >
-                          {posting === post.id ? 'Posting...' : 'Post now'}
-                        </button>
-                        {post.status === 'pending_review' && (
-                          <button
-                            onClick={() => approvePost(post)}
-                            disabled={saving === post.id || posting === post.id}
-                            className="btn-secondary disabled:opacity-50"
-                          >
-                            {saving === post.id ? 'Saving...' : 'Schedule for later'}
-                          </button>
                         )}
-                        <button
-                          onClick={() => rejectPost(post.id)}
-                          disabled={saving === post.id || posting === post.id}
-                          className="btn-secondary disabled:opacity-50"
-                        >
-                          Discard
-                        </button>
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
             )
           })}
