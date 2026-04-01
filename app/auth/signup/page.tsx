@@ -7,21 +7,7 @@ import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-
-const TRADES = [
-  'General Contractor',
-  'Electrician',
-  'Plumber',
-  'HVAC Technician',
-  'Landscaper',
-  'Painter',
-  'Roofer',
-  'Carpenter',
-  'Mason / Concrete',
-  'Barber',
-  'Hair Stylist',
-  'Other',
-]
+import { TRADES } from '@/lib/trades'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -29,14 +15,22 @@ export default function SignupPage() {
     email: '',
     password: '',
     businessName: '',
-    trade: 'General Contractor',
+    trade: '',
+    subcategory: '',
   })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   function update(field: string, value: string) {
-    setForm(prev => ({ ...prev, [field]: value }))
+    setForm(prev => ({
+      ...prev,
+      [field]: value,
+      // Reset subcategory when trade changes
+      ...(field === 'trade' ? { subcategory: '' } : {}),
+    }))
   }
+
+  const selectedTrade = TRADES.find(t => t.value === form.trade)
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
@@ -45,12 +39,10 @@ export default function SignupPage() {
 
     const supabase = createClient()
 
-    // Step 1: Create the Supabase auth user
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: form.email,
       password: form.password,
       options: {
-        // Pass extra info — we'll save it to the profiles table
         data: {
           business_name: form.businessName,
           trade: form.trade,
@@ -64,8 +56,6 @@ export default function SignupPage() {
       return
     }
 
-    // Step 2: Insert a row into the user_profiles table
-    // (Supabase auth creates the user, but we store extra info separately)
     if (authData.user) {
       const { error: profileError } = await supabase
         .from('user_profiles')
@@ -75,7 +65,7 @@ export default function SignupPage() {
           business_name: form.businessName,
           trade: form.trade,
           caption_tone: 'professional',
-          auto_post: false,   // default: notify mode, not auto-post
+          auto_post: false,
         })
 
       if (profileError) {
@@ -111,22 +101,59 @@ export default function SignupPage() {
               <label className="block text-sm font-medium text-gray-700 mb-1">Business name</label>
               <input
                 className="input"
-                placeholder="Jake's Contracting LLC"
+                placeholder="Jake's Barbershop"
                 value={form.businessName}
                 onChange={e => update('businessName', e.target.value)}
                 required
               />
             </div>
+
+            {/* Trade selection with icons */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your trade</label>
-              <select
-                className="input"
-                value={form.trade}
-                onChange={e => update('trade', e.target.value)}
-              >
-                {TRADES.map(t => <option key={t}>{t}</option>)}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Your trade</label>
+              <div className="grid grid-cols-2 gap-3">
+                {TRADES.map(trade => (
+                  <button
+                    key={trade.value}
+                    type="button"
+                    onClick={() => update('trade', trade.value)}
+                    className={`flex items-center gap-3 p-3 rounded-xl border transition-colors text-left ${
+                      form.trade === trade.value
+                        ? 'border-brand-600 bg-brand-50 text-brand-600'
+                        : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <div className="flex-shrink-0">{trade.icon}</div>
+                    <span className="text-sm font-medium">{trade.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Subcategories */}
+            {selectedTrade && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Specialty</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {selectedTrade.subcategories.map(sub => (
+                    <button
+                      key={sub.value}
+                      type="button"
+                      onClick={() => update('subcategory', sub.value)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-left transition-colors ${
+                        form.subcategory === sub.value
+                          ? 'border-brand-600 bg-brand-50 text-brand-600'
+                          : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                      }`}
+                    >
+                      <div className="flex-shrink-0">{sub.icon}</div>
+                      <span className="text-xs font-medium">{sub.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
               <input
@@ -157,7 +184,7 @@ export default function SignupPage() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !form.trade}
               className="btn-primary w-full py-2.5 disabled:opacity-50"
             >
               {loading ? 'Creating account...' : 'Create account'}

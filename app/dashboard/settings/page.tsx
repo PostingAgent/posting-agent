@@ -1,20 +1,15 @@
 // app/dashboard/settings/page.tsx
-// User profile settings — trade, tone, business name
+// User profile settings — trade, subcategory, tone, business name
 
 'use client'
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { UserProfile } from '@/types'
-
-const TRADES = [
-  'General Contractor', 'Electrician', 'Plumber', 'HVAC Technician',
-  'Landscaper', 'Painter', 'Roofer', 'Carpenter', 'Mason / Concrete',
-  'Barber', 'Hair Stylist', 'Other',
-]
+import { TRADES } from '@/lib/trades'
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState<Partial<UserProfile>>({})
+  const [profile, setProfile] = useState<Partial<UserProfile & { subcategory: string }>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -38,6 +33,8 @@ export default function SettingsPage() {
   function update(field: string, value: string | boolean) {
     setProfile(prev => ({ ...prev, [field]: value }))
   }
+
+  const selectedTrade = TRADES.find(t => t.value === profile.trade)
 
   async function save() {
     setSaving(true)
@@ -68,7 +65,7 @@ export default function SettingsPage() {
   )
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
+    <div className="p-4 sm:p-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 mb-2">Settings</h1>
       <p className="text-sm text-gray-500 mb-8">
         This info helps the AI write better captions for your trade.
@@ -81,31 +78,66 @@ export default function SettingsPage() {
             className="input"
             value={profile.business_name ?? ''}
             onChange={e => update('business_name', e.target.value)}
-            placeholder="Jake's Contracting LLC"
+            placeholder="Jake's Barbershop"
           />
         </div>
 
+        {/* Trade selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Your trade</label>
-          <select
-            className="input"
-            value={profile.trade ?? ''}
-            onChange={e => update('trade', e.target.value)}
-          >
-            {TRADES.map(t => <option key={t}>{t}</option>)}
-          </select>
-          <p className="text-xs text-gray-400 mt-1">
-            Used to tailor captions — a plumber&apos;s captions sound different from a landscaper&apos;s.
-          </p>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Your trade</label>
+          <div className="grid grid-cols-2 gap-3">
+            {TRADES.map(trade => (
+              <button
+                key={trade.value}
+                type="button"
+                onClick={() => update('trade', trade.value)}
+                className={`flex items-center gap-3 p-4 rounded-xl border transition-colors text-left ${
+                  profile.trade === trade.value
+                    ? 'border-brand-600 bg-brand-50 text-brand-600'
+                    : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                }`}
+              >
+                <div className="flex-shrink-0">{trade.icon}</div>
+                <span className="text-sm font-medium">{trade.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Subcategories */}
+        {selectedTrade && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Specialty</label>
+            <p className="text-xs text-gray-400 mb-3">
+              Helps the AI focus captions on what you do most.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {selectedTrade.subcategories.map(sub => (
+                <button
+                  key={sub.value}
+                  type="button"
+                  onClick={() => update('subcategory', sub.value)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-colors ${
+                    profile.subcategory === sub.value
+                      ? 'border-brand-600 bg-brand-50 text-brand-600'
+                      : 'border-gray-200 hover:bg-gray-50 text-gray-600'
+                  }`}
+                >
+                  <div className="flex-shrink-0">{sub.icon}</div>
+                  <span className="text-xs font-medium">{sub.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Caption tone</label>
           <div className="space-y-2">
             {[
-              { value: 'professional', label: 'Professional', example: '"Completed a full electrical panel upgrade — 200A service, up to code."' },
-              { value: 'casual',       label: 'Casual & friendly', example: '"Got this panel swap done today — came out clean! 💪"' },
-              { value: 'bold',         label: 'Bold & promotional', example: '"BOOM. Another panel upgrade done. Call us. We get it done RIGHT. 🔥"' },
+              { value: 'professional', label: 'Professional', example: '"Clean fade, sharp line-up. Book your next appointment — link in bio."' },
+              { value: 'casual',       label: 'Casual & friendly', example: '"Got my man looking fresh for the weekend. Who\'s next? 💪"' },
+              { value: 'bold',         label: 'Bold & promotional', example: '"ANOTHER banger fade. The chair stays hot. Book NOW before we\'re full. 🔥"' },
             ].map(opt => (
               <label
                 key={opt.value}
