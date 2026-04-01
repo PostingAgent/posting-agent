@@ -74,7 +74,7 @@ export default function ReviewPage() {
     setLoading(false)
   }
 
-  const filteredPosts = posts.filter(p => p.status === filter)
+  const filteredPosts = posts.filter(p => p.status === filter).slice(0, 5)
 
   function updateCaption(postId: string, newCaption: string) {
     setPosts(prev => prev.map(p =>
@@ -175,7 +175,7 @@ export default function ReviewPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Review posts</h1>
-            <p className="text-sm text-gray-500">All posts from the last 30 days.</p>
+            <p className="text-sm text-gray-500">Select to edit</p>
           </div>
           <button
             onClick={async () => {
@@ -194,7 +194,7 @@ export default function ReviewPage() {
         <div className="flex gap-2 flex-wrap">
           {(['pending_review', 'posted', 'approved', 'scheduled', 'failed'] as FilterStatus[]).map(status => {
             const count = posts.filter(p => p.status === status).length
-            if (count === 0) return null
+            if (count === 0 && status !== 'pending_review') return null
             const label = STATUS_LABELS[status].label
             return (
               <button
