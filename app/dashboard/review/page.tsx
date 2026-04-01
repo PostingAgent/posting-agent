@@ -74,9 +74,7 @@ export default function ReviewPage() {
     setLoading(false)
   }
 
-  const filteredPosts = filter === 'all'
-    ? posts
-    : posts.filter(p => p.status === filter)
+  const filteredPosts = posts.filter(p => p.status === filter)
 
   function updateCaption(postId: string, newCaption: string) {
     setPosts(prev => prev.map(p =>
