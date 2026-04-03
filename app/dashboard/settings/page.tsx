@@ -188,35 +188,20 @@ export default function SettingsPage() {
 
         {apiKey ? (
           <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
-                {apiKey}
-              </code>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(apiKey)
-                  setKeyCopied(true)
-                  setTimeout(() => setKeyCopied(false), 2000)
-                }}
-                className="btn-secondary text-xs flex-shrink-0"
-              >
-                {keyCopied ? 'Copied!' : 'Copy'}
-              </button>
-            </div>
-            <div className="bg-brand-50 border border-brand-100 rounded-xl p-4">
-              <p className="text-sm font-medium text-brand-700 mb-2">Setup instructions</p>
-              <ol className="text-xs text-brand-600 space-y-1.5 list-decimal list-inside">
-                <li>Open the <strong>Shortcuts</strong> app on your iPhone</li>
-                <li>Tap <strong>+</strong> to create a new shortcut</li>
-                <li>Add action: <strong>Select Photos</strong> (enable &quot;Select Multiple&quot;)</li>
-                <li>Add action: <strong>Get Contents of URL</strong></li>
-                <li>Set URL to: <code className="bg-brand-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/posts/upload-shortcut</code></li>
-                <li>Method: <strong>POST</strong></li>
-                <li>Add header: <code className="bg-brand-100 px-1 rounded">x-api-key</code> → paste your API key above</li>
-                <li>Request body: <strong>Form</strong> → add field <code className="bg-brand-100 px-1 rounded">photo</code> (type: File) → set to <strong>Selected Photos</strong></li>
-                <li>Name it &quot;Post to PA&quot; and add to your home screen or share sheet</li>
-              </ol>
-            </div>
+            <a
+              href={`/api/shortcut?key=${apiKey}`}
+              target="_blank"
+              className="btn-primary inline-flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <path d="M4 12V9m0 0l4-4 4 4M4 9h8"/>
+              </svg>
+              Set up iPhone Shortcut
+            </a>
+            <p className="text-xs text-gray-400">
+              Opens a setup page with your API key and step-by-step instructions.
+              Add it to your share sheet or set it to run every evening automatically.
+            </p>
             <button
               onClick={async () => {
                 setGeneratingKey(true)
@@ -243,7 +228,7 @@ export default function SettingsPage() {
             disabled={generatingKey}
             className="btn-primary disabled:opacity-50"
           >
-            {generatingKey ? 'Generating...' : 'Generate API key'}
+            {generatingKey ? 'Generating...' : 'Set up iPhone Shortcut'}
           </button>
         )}
       </div>
