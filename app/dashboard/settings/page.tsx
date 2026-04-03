@@ -13,6 +13,9 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [apiKey, setApiKey] = useState<string | null>(null)
+  const [generatingKey, setGeneratingKey] = useState(false)
+  const [keyCopied, setKeyCopied] = useState(false)
 
   const supabase = createClient()
 
@@ -25,6 +28,7 @@ export default function SettingsPage() {
         .eq('id', user!.id)
         .single()
       setProfile(data ?? {})
+      if (data?.api_key) setApiKey(data.api_key)
       setLoading(false)
     }
     load()
@@ -173,6 +177,75 @@ export default function SettingsPage() {
           </button>
           {saved && <span className="ml-3 text-sm text-green-600 font-medium">Saved ✓</span>}
         </div>
+      </div>
+
+      {/* iOS Shortcut */}
+      <div className="card mb-6">
+        <h2 className="text-sm font-semibold text-gray-800 mb-1">iPhone Shortcut</h2>
+        <p className="text-xs text-gray-500 mb-4">
+          Upload photos to Posting Agent straight from your iPhone share sheet — including shared albums.
+        </p>
+
+        {apiKey ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-gray-600 truncate">
+                {apiKey}
+              </code>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(apiKey)
+                  setKeyCopied(true)
+                  setTimeout(() => setKeyCopied(false), 2000)
+                }}
+                className="btn-secondary text-xs flex-shrink-0"
+              >
+                {keyCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            <div className="bg-brand-50 border border-brand-100 rounded-xl p-4">
+              <p className="text-sm font-medium text-brand-700 mb-2">Setup instructions</p>
+              <ol className="text-xs text-brand-600 space-y-1.5 list-decimal list-inside">
+                <li>Open the <strong>Shortcuts</strong> app on your iPhone</li>
+                <li>Tap <strong>+</strong> to create a new shortcut</li>
+                <li>Add action: <strong>Select Photos</strong> (enable &quot;Select Multiple&quot;)</li>
+                <li>Add action: <strong>Get Contents of URL</strong></li>
+                <li>Set URL to: <code className="bg-brand-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/api/posts/upload-shortcut</code></li>
+                <li>Method: <strong>POST</strong></li>
+                <li>Add header: <code className="bg-brand-100 px-1 rounded">x-api-key</code> → paste your API key above</li>
+                <li>Request body: <strong>Form</strong> → add field <code className="bg-brand-100 px-1 rounded">photo</code> (type: File) → set to <strong>Selected Photos</strong></li>
+                <li>Name it &quot;Post to PA&quot; and add to your home screen or share sheet</li>
+              </ol>
+            </div>
+            <button
+              onClick={async () => {
+                setGeneratingKey(true)
+                const res = await fetch('/api/generate-api-key', { method: 'POST' })
+                const data = await res.json()
+                if (data.apiKey) setApiKey(data.apiKey)
+                setGeneratingKey(false)
+              }}
+              disabled={generatingKey}
+              className="text-xs text-red-500 hover:text-red-600"
+            >
+              Regenerate key (invalidates old one)
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={async () => {
+              setGeneratingKey(true)
+              const res = await fetch('/api/generate-api-key', { method: 'POST' })
+              const data = await res.json()
+              if (data.apiKey) setApiKey(data.apiKey)
+              setGeneratingKey(false)
+            }}
+            disabled={generatingKey}
+            className="btn-primary disabled:opacity-50"
+          >
+            {generatingKey ? 'Generating...' : 'Generate API key'}
+          </button>
+        )}
       </div>
 
       {/* Sign out */}

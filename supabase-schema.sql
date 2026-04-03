@@ -19,6 +19,7 @@ create table public.user_profiles (
   google_access_token  text,
   google_refresh_token text,
   google_folder_id     text,
+  api_key              text unique,   -- API key for iOS Shortcut uploads
   created_at           timestamptz default now()
 );
 
