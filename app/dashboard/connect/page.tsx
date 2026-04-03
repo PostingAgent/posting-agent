@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { GoogleAlbum } from '@/types'
+import UploadButton from '@/components/UploadButton'
 
 export default function ConnectPage() {
   const [profile, setProfile] = useState<{
@@ -105,18 +106,37 @@ export default function ConnectPage() {
 
   return (
     <div className="p-8 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold text-gray-900 mb-2">Connect your photo folder</h1>
+      <h1 className="text-2xl font-bold text-gray-900 mb-2">Get your photos posted</h1>
       <p className="text-sm text-gray-500 mb-8">
-        Posting Agent watches this folder. Every new photo triggers an AI caption and a post.
+        Upload directly from your phone or connect a Google Drive folder for automatic posting.
       </p>
+
+      {/* Quick upload */}
+      <div className="card mb-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-800">Upload a photo</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Take a photo or choose from your camera roll — including shared albums.
+            </p>
+          </div>
+          <UploadButton />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 mb-6">
+        <div className="flex-1 h-px bg-gray-200" />
+        <span className="text-xs text-gray-400">or set up auto-posting</span>
+        <div className="flex-1 h-px bg-gray-200" />
+      </div>
 
       {/* Step 1: Connect Google */}
       <div className="card mb-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-gray-800">Step 1 — Connect Google Photos</h2>
+            <h2 className="text-sm font-semibold text-gray-800">Step 1 — Connect Google Drive</h2>
             <p className="text-xs text-gray-500 mt-1">
-              We only read your photos — we never modify or delete anything.
+              We watch a folder for new photos — we never modify or delete anything.
             </p>
           </div>
           {profile?.google_access_token ? (
@@ -128,7 +148,7 @@ export default function ConnectPage() {
               <svg className="w-4 h-4" viewBox="0 0 24 24">
                 <path fill="#fff" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/>
               </svg>
-              Connect Google Photos
+              Connect Google Drive
             </button>
           )}
         </div>
