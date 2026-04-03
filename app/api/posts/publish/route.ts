@@ -4,12 +4,10 @@
 // Called by cron every 15 minutes.
 // Finds all posts with status "scheduled" whose scheduled_for time has passed,
 // and publishes them to the selected social platforms.
-//
-// NOTE: For Beta 1, Meta (Instagram + Facebook) posting is implemented.
-// TikTok, LinkedIn, and X are stubbed — add their SDKs in a future sprint.
 
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/server'
+import { postToInstagram, postToFacebook, getTokenMap } from '@/lib/publish'
 import { Post, Platform } from '@/types'
 
 function verifyCronSecret(request: Request) {
@@ -62,134 +60,37 @@ export async function GET(request: Request) {
 
 // Publish a post to all its selected platforms
 async function publishPost(post: Post, supabase: Awaited<ReturnType<typeof createAdminClient>>) {
-  // Get the user's social platform tokens
-  const { data: tokens } = await supabase
-    .from('social_tokens')
-    .select('*')
-    .eq('user_id', post.user_id)
-
-  const tokenMap: Record<string, string> = {}
-  let igUserId = ''
-  let pageId = ''
-  tokens?.forEach((t: any) => {
-    tokenMap[t.platform] = t.access_token
-    if (t.platform === 'instagram' && t.ig_user_id) igUserId = t.ig_user_id
-    if (t.platform === 'facebook' && t.page_id) pageId = t.page_id
-  })
+  const { tokenMap, igUserId, pageId } = await getTokenMap(post.user_id, supabase)
 
   const fullCaption = `${post.caption}\n\n${post.hashtags?.join(' ')}`
 
   for (const platform of (post.platforms as Platform[])) {
+    const accessToken = tokenMap[platform]
+    if (!accessToken) {
+      console.log(`No token for ${platform}, skipping`)
+      continue
+    }
+
     try {
-      await publishToPlatform(platform, fullCaption, post.image_url, tokenMap[platform], igUserId, pageId)
+      switch (platform) {
+        case 'instagram':
+          await postToInstagram(fullCaption, post.image_url, accessToken, igUserId)
+          break
+        case 'facebook':
+          await postToFacebook(fullCaption, post.image_url, accessToken, pageId)
+          break
+        case 'linkedin':
+          console.log('LinkedIn posting coming in Beta 2')
+          break
+        case 'tiktok':
+          console.log('TikTok posting coming in Beta 2')
+          break
+        case 'x':
+          console.log('X posting coming in Beta 2')
+          break
+      }
     } catch (err) {
       console.error(`Failed to post to ${platform}:`, err)
-      // Don't fail the whole post if one platform fails
     }
   }
-}
-
-async function publishToPlatform(
-  platform: Platform,
-  caption: string,
-  imageUrl: string,
-  accessToken: string | undefined,
-  igUserId: string,
-  pageId: string
-) {
-  if (!accessToken) {
-    console.log(`No token for ${platform}, skipping`)
-    return
-  }
-
-  switch (platform) {
-    case 'instagram':
-      await postToInstagram(caption, imageUrl, accessToken, igUserId)
-      break
-    case 'facebook':
-      await postToFacebook(caption, imageUrl, accessToken, pageId)
-      break
-    case 'linkedin':
-      // TODO: implement LinkedIn posting in Beta 2
-      console.log('LinkedIn posting coming in Beta 2')
-      break
-    case 'tiktok':
-      // TODO: implement TikTok posting in Beta 2
-      console.log('TikTok posting coming in Beta 2')
-      break
-    case 'x':
-      // TODO: implement X posting in Beta 2
-      console.log('X posting coming in Beta 2')
-      break
-  }
-}
-
-// ── Instagram (via Meta Graph API) ────────────────────────────────────────────
-// Instagram posting is a 2-step process:
-// 1. Create a media container with the image + caption
-// 2. Publish the container
-
-async function postToInstagram(caption: string, imageUrl: string, accessToken: string, igUserId: string) {
-  console.log("IG posting to account:", igUserId);
-  console.log("IG image URL:", imageUrl);
-
-  if (!igUserId) throw new Error('No Instagram user ID found')
-
-  // Step 1: Create media container
-  const containerRes = await fetch(
-    `https://graph.facebook.com/v21.0/${igUserId}/media`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image_url: imageUrl,
-        caption,
-        access_token: accessToken,
-      }),
-    }
-  )
-  const containerData = await containerRes.json()
-  console.log("IG container response:", JSON.stringify(containerData));
-  if (!containerData.id) throw new Error(`Instagram container error: ${JSON.stringify(containerData)}`)
-
-  // Step 2: Publish
-  const publishRes = await fetch(
-    `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        creation_id: containerData.id,
-        access_token: accessToken,
-      }),
-    }
-  )
-  const publishData = await publishRes.json()
-  console.log("IG publish response:", JSON.stringify(publishData));
-  if (!publishData.id) throw new Error(`Instagram publish error: ${JSON.stringify(publishData)}`)
-}
-// ── Facebook (via Meta Graph API) ─────────────────────────────────────────────
-async function postToFacebook(caption: string, imageUrl: string, accessToken: string, pageId: string) {
-  console.log("FB posting to page:", pageId);
-
-  if (!pageId) {
-    console.log("No FB page ID found, skipping Facebook post");
-    return;
-  }
-
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${pageId}/photos`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: imageUrl,
-        caption,
-        access_token: accessToken,
-      }),
-    }
-  )
-  const data = await res.json()
-  console.log("FB post response:", JSON.stringify(data));
-  if (!data.id) throw new Error(`Facebook post error: ${JSON.stringify(data)}`)
 }

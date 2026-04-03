@@ -81,11 +81,12 @@ export async function GET(request: NextRequest) {
     }, { onConflict: 'user_id,platform' })
   }
 
-  if (pageToken) {
+  if (pageToken && pagesData.data?.[0]) {
     await supabase.from('social_tokens').upsert({
       user_id: user.id,
       platform: 'facebook',
       access_token: pageToken,
+      page_id: pagesData.data[0].id,
       expires_at: expiresAt,
     }, { onConflict: 'user_id,platform' })
   }

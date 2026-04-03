@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
-import { Post, Platform } from '@/types'
+import { postToInstagram, postToFacebook, getTokenMap } from '@/lib/publish'
 
 export async function POST(request: Request) {
   const supabase = await createClient()
@@ -46,20 +46,8 @@ export async function POST(request: Request) {
     })
     .eq('id', postId)
 
-  // Get the user's social platform tokens
-  const { data: tokens } = await admin
-    .from('social_tokens')
-    .select('*')
-    .eq('user_id', user.id)
-
-  const tokenMap: Record<string, string> = {}
-  let igUserId = ''
-  let pageId = ''
-  tokens?.forEach((t: any) => {
-    tokenMap[t.platform] = t.access_token
-    if (t.platform === 'instagram' && t.ig_user_id) igUserId = t.ig_user_id
-    if (t.platform === 'facebook' && t.page_id) pageId = t.page_id
-  })
+  // Get the user's social platform tokens (with auto-refresh)
+  const { tokenMap, igUserId, pageId } = await getTokenMap(user.id, admin)
 
   const fullCaption = `${caption ?? post.caption}\n\n${post.hashtags?.join(' ')}`
 
@@ -105,77 +93,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ success, postId, error: errorMessage || undefined })
-}
-
-// ── Platform publishing (matches cron publish route logic) ───────────────────
-
-async function publishToPlatform(
-  platform: Platform,
-  caption: string,
-  imageUrl: string,
-  accessToken: string,
-  igUserId: string,
-  pageId: string
-) {
-  switch (platform) {
-    case 'instagram':
-      await postToInstagram(caption, imageUrl, accessToken, igUserId)
-      break
-    case 'facebook':
-      await postToFacebook(caption, imageUrl, accessToken, pageId)
-      break
-    case 'linkedin':
-      console.log('LinkedIn posting coming in Beta 2')
-      break
-    case 'tiktok':
-      console.log('TikTok posting coming in Beta 2')
-      break
-    case 'x':
-      console.log('X posting coming in Beta 2')
-      break
-  }
-}
-
-async function postToInstagram(caption: string, imageUrl: string, accessToken: string, igUserId: string) {
-  if (!igUserId) throw new Error('No Instagram user ID found')
-
-  const containerRes = await fetch(
-    `https://graph.facebook.com/v21.0/${igUserId}/media`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url: imageUrl, caption, access_token: accessToken }),
-    }
-  )
-  const containerData = await containerRes.json()
-  if (!containerData.id) throw new Error(`Instagram container error: ${JSON.stringify(containerData)}`)
-
-  const publishRes = await fetch(
-    `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ creation_id: containerData.id, access_token: accessToken }),
-    }
-  )
-  const publishData = await publishRes.json()
-  if (!publishData.id) throw new Error(`Instagram publish error: ${JSON.stringify(publishData)}`)
-}
-
-async function postToFacebook(caption: string, imageUrl: string, accessToken: string, pageId: string) {
-  if (!pageId) {
-    console.log("No FB page ID found, skipping Facebook post")
-    return
-  }
-
-  const res = await fetch(
-    `https://graph.facebook.com/v21.0/${pageId}/photos`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: imageUrl, caption, access_token: accessToken }),
-    }
-  )
-  const data = await res.json()
-  if (!data.id) throw new Error(`Facebook post error: ${JSON.stringify(data)}`)
 }

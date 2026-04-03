@@ -219,7 +219,7 @@ Voice rules — this is critical:
 
 Return your response in this exact format:
 CAPTION: [your caption here]
-HASHTAGS: [comma-separated list of 6 relevant hashtags without the # symbol]`,
+HASHTAGS: [#tag1 #tag2 #tag3 #tag4 #tag5 #tag6]`,
             },
           ],
         },
@@ -233,7 +233,7 @@ HASHTAGS: [comma-separated list of 6 relevant hashtags without the # symbol]`,
 
     return {
       text: captionMatch?.[1]?.trim() ?? responseText,
-      hashtags: hashtagMatch?.[1]?.split(',').map((h: string) => h.trim()) ?? [],
+      hashtags: hashtagMatch?.[1]?.trim().split(/\s+/).filter((h: string) => h.startsWith('#')).slice(0, 6) ?? [],
     }
   } catch (err) {
     console.error('Caption generation error:', String(err))

@@ -93,6 +93,8 @@ create table public.social_tokens (
   access_token text not null,
   refresh_token text,
   expires_at   timestamptz,
+  ig_user_id   text,            -- Instagram business account ID
+  page_id      text,            -- Facebook page ID
   created_at   timestamptz default now(),
   unique (user_id, platform)
 );
