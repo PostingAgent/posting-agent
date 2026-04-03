@@ -3,7 +3,7 @@
 
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Post, Platform, PostStatus } from '@/types'
 import UploadButton from '@/components/UploadButton'
@@ -56,6 +56,18 @@ export default function ReviewPage() {
   const [visibleCount, setVisibleCount] = useState(20)
 
   const supabase = createClient()
+  const tonePickerRef = useRef<HTMLDivElement>(null)
+
+  // Close tone picker on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (tonePickerOpen && tonePickerRef.current && !tonePickerRef.current.contains(e.target as Node)) {
+        setTonePickerOpen(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [tonePickerOpen])
 
   useEffect(() => {
     loadPosts()
@@ -246,7 +258,7 @@ export default function ReviewPage() {
             const isActionable = post.status === 'pending_review' || post.status === 'approved' || post.status === 'scheduled'
 
             return (
-              <div key={post.id} className="card overflow-hidden">
+              <div key={post.id} className="card">
                 {/* Compact row — always visible */}
                 <div
                   className="flex items-center gap-3 cursor-pointer"
@@ -357,7 +369,7 @@ export default function ReviewPage() {
                         )}
 
                         {/* Regenerate caption — opens tone picker */}
-                        <div className="relative mt-3">
+                        <div className="relative mt-3" ref={tonePickerOpen === post.id ? tonePickerRef : undefined}>
                           {regenerating === post.id ? (
                             <button disabled className="btn-secondary text-xs opacity-50 flex items-center gap-1.5">
                               <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -380,7 +392,7 @@ export default function ReviewPage() {
                           )}
 
                           {tonePickerOpen === post.id && regenerating !== post.id && (
-                            <div className="absolute left-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[200px]">
+                            <div className="absolute left-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[200px]">
                               <p className="text-[10px] text-gray-400 uppercase tracking-wide px-2 py-1">Pick a style</p>
                               {TONES.map(t => (
                                 <button
