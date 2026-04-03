@@ -51,6 +51,7 @@ export default function ReviewPage() {
   const [postTones, setPostTones] = useState<Record<string, string>>({})
   const [postFilters, setPostFilters] = useState<Record<string, string>>({})
   const [selectedPost, setSelectedPost] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState(20)
 
   const supabase = createClient()
 
@@ -74,7 +75,8 @@ export default function ReviewPage() {
     setLoading(false)
   }
 
-  const filteredPosts = posts.filter(p => p.status === filter).slice(0, 5)
+  const allFiltered = posts.filter(p => p.status === filter)
+  const filteredPosts = allFiltered.slice(0, filter === 'posted' ? visibleCount : 5)
 
   function updateCaption(postId: string, newCaption: string) {
     setPosts(prev => prev.map(p =>
@@ -212,7 +214,7 @@ export default function ReviewPage() {
             return (
               <button
                 key={status}
-                onClick={() => setFilter(status)}
+                onClick={() => { setFilter(status); setVisibleCount(20); setSelectedPost(null) }}
                 className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${
                   filter === status
                     ? 'bg-brand-600 text-white'
@@ -232,7 +234,7 @@ export default function ReviewPage() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredPosts.map(post => {
+          {filteredPosts.map((post) => {
             const isSelected = selectedPost === post.id
             const activeFilter = postFilters[post.id] ?? 'none'
             const filterCss = PHOTO_FILTERS.find(f => f.value === activeFilter)?.css ?? ''
@@ -429,6 +431,16 @@ export default function ReviewPage() {
             )
           })}
         </div>
+      )}
+
+      {/* Load more button for posted tab */}
+      {filter === 'posted' && allFiltered.length > visibleCount && (
+        <button
+          onClick={() => setVisibleCount(prev => prev + 20)}
+          className="w-full mt-4 py-3 text-sm text-gray-500 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors"
+        >
+          Load more ({allFiltered.length - visibleCount} remaining)
+        </button>
       )}
     </div>
   )
