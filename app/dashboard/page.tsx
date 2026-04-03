@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { Post } from '@/types'
 import PostNowButton from '@/components/PostNowButton'
+import UploadButton from '@/components/UploadButton'
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   instagram: (
@@ -67,9 +68,12 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500 mt-1">Your posting activity at a glance</p>
         </div>
-        <Link href="/dashboard/connect" className="btn-primary">
-          + Connect folder
-        </Link>
+        <div className="flex gap-2">
+          <UploadButton />
+          <Link href="/dashboard/connect" className="btn-secondary">
+            Connect folder
+          </Link>
+        </div>
       </div>
 
       {/* Metric cards */}

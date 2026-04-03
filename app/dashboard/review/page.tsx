@@ -6,6 +6,7 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Post, Platform, PostStatus } from '@/types'
+import UploadButton from '@/components/UploadButton'
 
 const PLATFORM_COLORS: Record<Platform, string> = {
   instagram: 'bg-pink-500',
@@ -192,17 +193,20 @@ export default function ReviewPage() {
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Review posts</h1>
             <p className="text-sm text-gray-500">Select to edit</p>
           </div>
-          <button
-            onClick={async () => {
-              setChecking(true)
-              await fetch('/api/watch')
-              window.location.reload()
-            }}
-            disabled={checking}
-            className="btn-primary"
-          >
-            {checking ? 'Checking...' : 'Check for new photos'}
-          </button>
+          <div className="flex gap-2">
+            <UploadButton />
+            <button
+              onClick={async () => {
+                setChecking(true)
+                await fetch('/api/watch')
+                window.location.reload()
+              }}
+              disabled={checking}
+              className="btn-secondary"
+            >
+              {checking ? 'Checking...' : 'Check for new photos'}
+            </button>
+          </div>
         </div>
 
         {/* Status filter tabs */}
