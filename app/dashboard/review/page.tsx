@@ -52,6 +52,7 @@ export default function ReviewPage() {
   const [postTones, setPostTones] = useState<Record<string, string>>({})
   const [postFilters, setPostFilters] = useState<Record<string, string>>({})
   const [selectedPost, setSelectedPost] = useState<string | null>(null)
+  const [tonePickerOpen, setTonePickerOpen] = useState<string | null>(null)
   const [visibleCount, setVisibleCount] = useState(20)
 
   const supabase = createClient()
@@ -86,10 +87,10 @@ export default function ReviewPage() {
   }
 
   // Regenerate AI caption for a single post with optional tone override
-  async function regenerateCaption(post: Post) {
+  async function regenerateCaption(post: Post, toneOverride?: string) {
     setRegenerating(post.id)
     try {
-      const tone = postTones[post.id] // undefined = use profile default
+      const tone = toneOverride || postTones[post.id] // undefined = use profile default
       const res = await fetch('/api/posts/recaption-single', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -355,29 +356,58 @@ export default function ReviewPage() {
                           </div>
                         )}
 
-                        {/* Regenerate + tone picker — always available */}
-                        <div className="flex items-center gap-2 mt-3 flex-wrap">
-                          <button
-                            onClick={() => regenerateCaption(post)}
-                            disabled={regenerating === post.id}
-                            className="btn-secondary text-xs disabled:opacity-50 flex items-center gap-1.5"
-                          >
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                              <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
-                              <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                            {regenerating === post.id ? 'Regenerating...' : 'Regenerate caption'}
-                          </button>
-                          <select
-                            value={postTones[post.id] ?? ''}
-                            onChange={e => setPostTones(prev => ({ ...prev, [post.id]: e.target.value }))}
-                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-brand-400"
-                          >
-                            <option value="">Default tone</option>
-                            {TONES.map(t => (
-                              <option key={t.value} value={t.value}>{t.label}</option>
-                            ))}
-                          </select>
+                        {/* Regenerate caption — opens tone picker */}
+                        <div className="relative mt-3">
+                          {regenerating === post.id ? (
+                            <button disabled className="btn-secondary text-xs opacity-50 flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
+                                <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Regenerating...
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => setTonePickerOpen(tonePickerOpen === post.id ? null : post.id)}
+                              className="btn-secondary text-xs flex items-center gap-1.5"
+                            >
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M2 8a6 6 0 0 1 10.3-4.2M14 8a6 6 0 0 1-10.3 4.2" strokeLinecap="round"/>
+                                <path d="M12 1v3.5h-3.5M4 15v-3.5h3.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Regenerate caption
+                            </button>
+                          )}
+
+                          {tonePickerOpen === post.id && regenerating !== post.id && (
+                            <div className="absolute left-0 top-full mt-1 z-10 bg-white border border-gray-200 rounded-xl shadow-lg p-2 min-w-[200px]">
+                              <p className="text-[10px] text-gray-400 uppercase tracking-wide px-2 py-1">Pick a style</p>
+                              {TONES.map(t => (
+                                <button
+                                  key={t.value}
+                                  onClick={() => {
+                                    setPostTones(prev => ({ ...prev, [post.id]: t.value }))
+                                    setTonePickerOpen(null)
+                                    regenerateCaption(post, t.value)
+                                  }}
+                                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700"
+                                >
+                                  {t.label}
+                                </button>
+                              ))}
+                              <div className="border-t border-gray-100 mt-1 pt-1">
+                                <button
+                                  onClick={() => {
+                                    setTonePickerOpen(null)
+                                    updateCaption(post.id, '')
+                                  }}
+                                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-gray-50 text-gray-700"
+                                >
+                                  Write your own
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Action buttons */}
