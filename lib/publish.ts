@@ -53,6 +53,7 @@ export async function postToInstagram(
 ) {
   if (!igUserId) throw new Error('No Instagram user ID found')
 
+  // Step 1: Create media container
   const containerRes = await fetch(
     `https://graph.facebook.com/v21.0/${igUserId}/media`,
     {
@@ -64,6 +65,10 @@ export async function postToInstagram(
   const containerData = await containerRes.json()
   if (!containerData.id) throw new Error(`Instagram container error: ${JSON.stringify(containerData)}`)
 
+  // Step 2: Wait for container to be ready (poll status)
+  await waitForContainerReady(containerData.id, accessToken)
+
+  // Step 3: Publish
   const publishRes = await fetch(
     `https://graph.facebook.com/v21.0/${igUserId}/media_publish`,
     {
@@ -74,6 +79,26 @@ export async function postToInstagram(
   )
   const publishData = await publishRes.json()
   if (!publishData.id) throw new Error(`Instagram publish error: ${JSON.stringify(publishData)}`)
+}
+
+// Poll the container status until it's FINISHED or we timeout
+async function waitForContainerReady(containerId: string, accessToken: string) {
+  const maxAttempts = 10
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(resolve => setTimeout(resolve, 3000)) // wait 3 seconds
+
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${containerId}?fields=status_code&access_token=${accessToken}`
+    )
+    const data = await res.json()
+
+    if (data.status_code === 'FINISHED') return
+    if (data.status_code === 'ERROR') {
+      throw new Error(`Instagram container processing failed: ${JSON.stringify(data)}`)
+    }
+    // IN_PROGRESS — keep polling
+  }
+  throw new Error('Instagram container timed out after 30 seconds')
 }
 
 // ── Facebook (via Meta Graph API) ────────────────────────────────────────────

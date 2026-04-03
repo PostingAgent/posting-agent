@@ -26,7 +26,7 @@ export default function ConnectPage() {
     const params = new URLSearchParams({
       client_id: "2452114718572183",
       redirect_uri: window.location.origin + "/api/meta/callback",
-      scope: "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,business_management",
+      scope: "instagram_basic,instagram_content_publish,pages_show_list,pages_read_engagement,pages_manage_posts,business_management",
       response_type: "code",
     })
     window.location.href = "https://www.facebook.com/v21.0/dialog/oauth?" + params
