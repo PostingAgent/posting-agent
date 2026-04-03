@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { Post } from '@/types'
 import PostNowButton from '@/components/PostNowButton'
 import UploadButton from '@/components/UploadButton'
+import InstallPrompt from '@/components/InstallPrompt'
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   instagram: (
@@ -61,7 +62,9 @@ export default async function DashboardPage() {
   const scheduled = allPosts.filter(p => p.status === 'scheduled').length
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
+    <div className="max-w-5xl mx-auto">
+      <InstallPrompt />
+      <div className="p-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -195,6 +198,7 @@ export default async function DashboardPage() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   )
